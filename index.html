@@ -543,6 +543,110 @@
     font-variant-numeric:tabular-nums;
     color:var(--muted);
   }
+  /* Accounts sit above everything because they scope the whole page. */
+  .accountBar{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    flex-wrap:wrap;
+    padding:6px;
+    border:1px solid var(--border);
+    border-radius:16px;
+    background:rgba(255,255,255,0.72);
+    box-shadow:var(--shadow-edge);
+  }
+  .acctTab{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:8px 10px 8px 13px;
+    border-radius:11px;
+    border:1px solid transparent;
+    background:transparent;
+    color:#3d5570;
+    font-size:12.5px;
+    font-weight:550;
+    cursor:pointer;
+    box-shadow:none;
+  }
+  .acctTab:hover{ background:#eef5ff; transform:none; box-shadow:none; filter:none; }
+  .acctTab.isActive{
+    background:#ffffff;
+    border-color:#bfd4ea;
+    color:#12376f;
+    font-weight:650;
+    box-shadow:0 1px 4px rgba(15,23,42,0.08);
+  }
+  .acctTab .acctClose{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:18px;
+    height:18px;
+    border-radius:50%;
+    font-size:13px;
+    line-height:1;
+    color:#7d90a6;
+  }
+  .acctTab .acctClose:hover{ background:rgba(220,38,38,0.13); color:#b91c1c; }
+  .acctTab.isAll{
+    border-color:#bfd4ea;
+    background:linear-gradient(135deg,#eef5ff,#e3edfd);
+    color:#12376f;
+  }
+  .acctTab.isAll.isActive{ box-shadow:0 0 0 2px rgba(37,99,235,0.2); }
+  .acctAdd{
+    padding:7px 11px;
+    font-size:12.5px;
+    background:transparent;
+    border:1px dashed var(--border-strong);
+    color:#4a5f78;
+    box-shadow:none;
+  }
+  .acctAdd:hover{ background:#f2f8ff; transform:none; box-shadow:none; filter:none; }
+  .acctName{
+    border:none;
+    background:transparent;
+    padding:0;
+    font:inherit;
+    color:inherit;
+    width:auto;
+    min-width:2ch;
+    outline:none;
+  }
+  .acctName:focus{
+    background:#ffffff;
+    box-shadow:0 0 0 2px rgba(37,99,235,0.3);
+    border-radius:5px;
+    padding:0 3px;
+  }
+  /* In the combined view the inputs are meaningless -- you cannot edit "all". */
+  .allMode .inputsCard,
+  .allMode .scenariosCard{ display:none; }
+  .accountsBreakdown{ display:none; }
+  .allMode .accountsBreakdown{ display:block; }
+  .breakdownRow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:11px 12px;
+    border:1px solid var(--border);
+    border-radius:13px;
+    background:#ffffff;
+    margin-top:8px;
+  }
+  .breakdownName{ font-size:13px; font-weight:600; color:#1f344a; }
+  .breakdownMeta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .breakdownValue{
+    font-family:var(--display);
+    font-size:15px;
+    font-weight:650;
+    color:#17304b;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+  .breakdownShare{ font-size:11px; color:var(--muted); text-align:right; margin-top:3px; }
   .exportWrap{ position:relative; }
   .exportMenu{
     position:absolute;
@@ -1122,7 +1226,24 @@
     <div class="badge" id="pill">-</div>
   </header>
 
+  <nav class="accountBar" id="accountBar" aria-label="Accounts"></nav>
+
   <div class="mainGrid">
+    <section class="card accountsBreakdown" id="accountsBreakdown">
+      <div class="cardHeader">
+        <div class="chartHeading">
+          <div class="cardTitle">All accounts</div>
+          <div class="chartSubtitle" id="breakdownSubtitle">Combined position across every account.</div>
+        </div>
+      </div>
+      <div id="breakdownList"></div>
+      <div class="hint" id="breakdownNote"></div>
+      <div class="inlineRow" style="margin-top:14px;">
+        <label class="toggle"><input id="combinedMcToggle" type="checkbox"> Model market swings</label>
+      </div>
+      <div class="hint">All accounts share each month's market move, so the combined range reflects that they rise and fall together rather than cancelling out.</div>
+    </section>
+
     <section class="card inputsCard">
       <div class="cardHeader">
         <div class="cardTitle">Your plan</div>
@@ -1498,6 +1619,9 @@
     scenarios: [],
     activeScenarioId: null,
     chainMode: false,
+    // The fields above mirror whichever account is active; these own the set.
+    accounts: [],
+    activeAccountId: null,
     chart: {
       zoomLevel: 1,
       viewOffset: 0,
@@ -1697,20 +1821,78 @@
      throwing. Only the model is persisted -- chart zoom and pan are view
      state and deliberately start fresh. */
   const STORAGE_KEY = "compoundInterestCalculator.state";
-  const STORAGE_VERSION = 1;
+  const STORAGE_VERSION = 2;
+  const ALL_ACCOUNTS = "__all__";
+  const MAX_ACCOUNTS = 12;
   let shippedDefaults = null;
   let saveTimer = null;
 
-  function persistableState() {
+  /* One profile holds several accounts -- a 401k and a brokerage are separate pots
+     that exist at the same time. They are distinct from scenarios (alternative
+     versions of one account) and from chained phases (one account over time).
+     appState always mirrors the *active* account, so every existing code path
+     keeps working untouched; switching accounts swaps that mirror in and out. */
+
+  function captureAccountState() {
     return {
-      v: STORAGE_VERSION,
       ui: { ...appState.ui },
       milestonesEnabled: !!appState.milestonesEnabled,
-      milestones: Array.isArray(appState.milestones) ? appState.milestones : [],
-      scenarios: Array.isArray(appState.scenarios) ? appState.scenarios : [],
+      milestones: deepCopy(Array.isArray(appState.milestones) ? appState.milestones : []),
+      scenarios: deepCopy(Array.isArray(appState.scenarios) ? appState.scenarios : []),
       activeScenarioId: appState.activeScenarioId ?? null,
       chainMode: !!appState.chainMode,
       simpleSnapshot: appState._simpleSnapshot ?? null
+    };
+  }
+
+  function applyAccountState(state) {
+    const base = shippedDefaults ? deepCopy(shippedDefaults) : null;
+    const src = isPlainObject(state) ? state : {};
+    if (base) appState.ui = base.ui;
+    if (isPlainObject(src.ui)) {
+      Object.keys(appState.ui).forEach(key => {
+        const val = src.ui[key];
+        if (val === undefined) return;
+        if (typeof val === typeof appState.ui[key]) appState.ui[key] = val;
+      });
+    }
+    appState.milestones = Array.isArray(src.milestones)
+      ? deepCopy(src.milestones.filter(m => isPlainObject(m) && m.id)) : [];
+    appState.milestonesEnabled = !!src.milestonesEnabled;
+    appState.scenarios = Array.isArray(src.scenarios)
+      ? deepCopy(src.scenarios.filter(s => isPlainObject(s) && s.id && isPlainObject(s.inputs))).slice(0, MAX_SCENARIOS)
+      : [];
+    const activeExists = appState.scenarios.some(s => s.id === src.activeScenarioId);
+    appState.activeScenarioId = activeExists ? src.activeScenarioId : null;
+    appState.chainMode = !!src.chainMode && appState.scenarios.length > 0;
+    appState._simpleSnapshot = isPlainObject(src.simpleSnapshot) ? src.simpleSnapshot : null;
+  }
+
+  function makeAccount(name, state) {
+    return { id: uid("acct"), name: String(name || "Account"), state: state || captureAccountState() };
+  }
+
+  function getActiveAccount() {
+    return appState.accounts.find(a => a.id === appState.activeAccountId) || null;
+  }
+
+  function isAllAccountsView() {
+    return appState.activeAccountId === ALL_ACCOUNTS && appState.accounts.length > 0;
+  }
+
+  // Fold the live mirror back into whichever account owns it.
+  function syncActiveAccount() {
+    if (isAllAccountsView()) return;
+    const acct = getActiveAccount();
+    if (acct) acct.state = captureAccountState();
+  }
+
+  function persistableState() {
+    syncActiveAccount();
+    return {
+      v: STORAGE_VERSION,
+      accounts: appState.accounts.map(a => ({ id: a.id, name: a.name, state: a.state })),
+      activeAccountId: appState.activeAccountId
     };
   }
 
@@ -1744,42 +1926,41 @@
 
     let saved = null;
     try { saved = JSON.parse(raw); } catch (err) { clearStoredState(); return false; }
-    // A stored blob from a different schema is discarded rather than half-applied.
-    if (!isPlainObject(saved) || saved.v !== STORAGE_VERSION || !isPlainObject(saved.ui)) {
+    if (!isPlainObject(saved)) { clearStoredState(); return false; }
+
+    // v1 stored a single plan at the top level. Rather than discarding that work,
+    // it is lifted into the first account of the new shape.
+    if (saved.v === 1 && isPlainObject(saved.ui)) {
+      appState.accounts = [makeAccount("Account 1", {
+        ui: saved.ui,
+        milestonesEnabled: saved.milestonesEnabled,
+        milestones: saved.milestones,
+        scenarios: saved.scenarios,
+        activeScenarioId: saved.activeScenarioId,
+        chainMode: saved.chainMode,
+        simpleSnapshot: saved.simpleSnapshot
+      })];
+      appState.activeAccountId = appState.accounts[0].id;
+      applyAccountState(appState.accounts[0].state);
+      return true;
+    }
+
+    if (saved.v !== STORAGE_VERSION || !Array.isArray(saved.accounts)) {
       clearStoredState();
       return false;
     }
 
-    // Copy only keys the current build already knows about, and only when the type
-    // matches, so a stale or hand-edited entry cannot poison the model.
-    Object.keys(appState.ui).forEach(key => {
-      const val = saved.ui[key];
-      if (val === undefined) return;
-      if (typeof val === typeof appState.ui[key]) appState.ui[key] = val;
-    });
+    const accounts = saved.accounts
+      .filter(a => isPlainObject(a) && a.id && isPlainObject(a.state))
+      .slice(0, MAX_ACCOUNTS)
+      .map((a, idx) => ({ id: String(a.id), name: String(a.name || `Account ${idx + 1}`), state: a.state }));
+    if (!accounts.length) { clearStoredState(); return false; }
 
-    if (Array.isArray(saved.milestones)) {
-      appState.milestones = saved.milestones.filter(m => isPlainObject(m) && m.id);
-    }
-    appState.milestonesEnabled = !!saved.milestonesEnabled;
-
-    if (Array.isArray(saved.scenarios)) {
-      appState.scenarios = saved.scenarios
-        .filter(s => isPlainObject(s) && s.id && isPlainObject(s.inputs))
-        .slice(0, MAX_SCENARIOS)
-        .map((s, idx) => ({
-          ...s,
-          name: String(s.name || `Scenario ${idx + 1}`),
-          color: isPlainObject(s.color) && s.color.hex
-            ? s.color
-            : SCENARIO_COLORS[idx % SCENARIO_COLORS.length]
-        }));
-    }
-
-    const activeStillExists = appState.scenarios.some(s => s.id === saved.activeScenarioId);
-    appState.activeScenarioId = activeStillExists ? saved.activeScenarioId : null;
-    appState.chainMode = !!saved.chainMode && appState.scenarios.length > 0;
-    appState._simpleSnapshot = isPlainObject(saved.simpleSnapshot) ? saved.simpleSnapshot : null;
+    appState.accounts = accounts;
+    const wantsAll = saved.activeAccountId === ALL_ACCOUNTS && accounts.length > 0;
+    const known = accounts.some(a => a.id === saved.activeAccountId);
+    appState.activeAccountId = wantsAll ? ALL_ACCOUNTS : (known ? saved.activeAccountId : accounts[0].id);
+    applyAccountState((getActiveAccount() || accounts[0]).state);
     return true;
   }
 
@@ -1795,14 +1976,97 @@
     appState.scenarios = [];
     appState.activeScenarioId = null;
     appState.chainMode = false;
+    appState.accounts = [makeAccount("Account 1", captureAccountState())];
+    appState.activeAccountId = appState.accounts[0].id;
 
     suppressEvents = true;
     applyStateToUI();
     suppressEvents = false;
     updateUIState();
+    renderAccountTabs();
     renderMilestones();
     renderScenarios();
     renderComparisonTable();
+    calculate();
+  }
+
+  function switchAccount(id) {
+    if (id === appState.activeAccountId) return;
+    syncActiveAccount();
+    if (id === ALL_ACCOUNTS) {
+      appState.activeAccountId = ALL_ACCOUNTS;
+    } else {
+      const target = appState.accounts.find(a => a.id === id);
+      if (!target) return;
+      appState.activeAccountId = id;
+      applyAccountState(target.state);
+    }
+    suppressEvents = true;
+    applyStateToUI();
+    suppressEvents = false;
+    updateUIState();
+    renderAccountTabs();
+    renderMilestones();
+    renderScenarios();
+    renderComparisonTable();
+    calculate();
+    saveState();
+  }
+
+  function addAccount() {
+    if (appState.accounts.length >= MAX_ACCOUNTS) return;
+    syncActiveAccount();
+    // A new account starts from the shipped defaults, not a copy of the current
+    // one, so adding "Brokerage" next to "401k" does not silently inherit its rate.
+    const fresh = shippedDefaults ? deepCopy(shippedDefaults) : null;
+    const state = fresh
+      ? { ui: fresh.ui, milestonesEnabled: false, milestones: [], scenarios: [], activeScenarioId: null, chainMode: false, simpleSnapshot: null }
+      : captureAccountState();
+    const acct = makeAccount(`Account ${appState.accounts.length + 1}`, state);
+    appState.accounts.push(acct);
+    appState.activeAccountId = acct.id;
+    applyAccountState(acct.state);
+
+    suppressEvents = true;
+    applyStateToUI();
+    suppressEvents = false;
+    updateUIState();
+    renderAccountTabs();
+    renderMilestones();
+    renderScenarios();
+    renderComparisonTable();
+    calculate();
+  }
+
+  function removeAccount(id) {
+    if (appState.accounts.length <= 1) return;
+    const idx = appState.accounts.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    appState.accounts.splice(idx, 1);
+    if (appState.activeAccountId === id) {
+      const next = appState.accounts[Math.max(0, idx - 1)];
+      appState.activeAccountId = next.id;
+      applyAccountState(next.state);
+      suppressEvents = true;
+      applyStateToUI();
+      suppressEvents = false;
+    }
+    if (appState.activeAccountId === ALL_ACCOUNTS && appState.accounts.length === 0) {
+      appState.activeAccountId = appState.accounts[0]?.id ?? null;
+    }
+    updateUIState();
+    renderAccountTabs();
+    renderMilestones();
+    renderScenarios();
+    renderComparisonTable();
+    calculate();
+  }
+
+  function renameAccount(id, name) {
+    const acct = appState.accounts.find(a => a.id === id);
+    if (!acct) return;
+    acct.name = String(name || "").trim().slice(0, 28) || acct.name;
+    renderAccountTabs();
     calculate();
   }
 
@@ -2034,6 +2298,9 @@
 
     const msToggle = $("milestonesToggle");
     if (msToggle) msToggle.checked = appState.milestonesEnabled;
+
+    const combinedMc = $("combinedMcToggle");
+    if (combinedMc) combinedMc.checked = !!ui.mcEnabled;
 
     updateRefineBadges();
   }
@@ -3654,8 +3921,10 @@
     saveState();
 
     const ui = appState.ui;
-    const chainActive = appState.chainMode && appState.scenarios.length > 0;
-    let years = getActiveYears();
+    const allView = isAllAccountsView();
+    document.body.classList.toggle("allMode", allView);
+    const chainActive = !allView && appState.chainMode && appState.scenarios.length > 0;
+    let years = allView ? combinedHorizonYears() : getActiveYears();
 
     if (!(years > 0)) {
       renderEmptyState();
@@ -3663,7 +3932,7 @@
     }
 
     let contribAmt = ui.contrib;
-    if (!chainActive && ui.goalSeekOn && !ui.simpleMode) {
+    if (!allView && !chainActive && ui.goalSeekOn && !ui.simpleMode) {
       const targetYears = Math.max(1, Math.round(num(ui.targetYears, years)));
       const targetNominal = getTargetNominal(num(ui.targetBalance, 0), targetYears);
       const msGoal = appState.milestonesEnabled ? normalizeMilestonesFrom(targetYears, getMilestoneRunList()) : [];
@@ -3708,14 +3977,25 @@
       }
     }
 
-    const msRun = appState.milestonesEnabled ? normalizeMilestonesFrom(years, getMilestoneRunList()) : [];
+    // In the combined view each account already carries its own events, so there is
+    // no page-level milestone list to overlay.
+    const msRun = (!allView && appState.milestonesEnabled)
+      ? normalizeMilestonesFrom(years, getMilestoneRunList())
+      : [];
 
     const taxPct = ui.taxEnabled ? ui.taxRate / 100 : 0;
     let baseOut = null;
     let phaseMarkers = [];
     let phaseBands = [];
 
-    if (chainActive) {
+    if (allView) {
+      baseOut = computeCombinedDeterministic();
+      if (!baseOut) {
+        renderEmptyState();
+        return;
+      }
+      years = baseOut.years;
+    } else if (chainActive) {
       const chained = computeChainedDeterministic();
       if (!chained) {
         renderEmptyState();
@@ -3745,7 +4025,7 @@
     }
 
     let delayedSeries = null;
-    if (!chainActive && ui.delayEnabled && !ui.goalSeekOn && !ui.simpleMode) {
+    if (!allView && !chainActive && ui.delayEnabled && !ui.goalSeekOn && !ui.simpleMode) {
       const delayYears = Math.min(Math.max(1, Math.round(ui.delayYears)), Math.floor(years));
       const delayedYears = Math.max(0, years - delayYears);
       if (delayedYears > 0) {
@@ -3789,10 +4069,14 @@
       }
     }
 
-    const mcEnabled = (!ui.simpleMode && ui.mcEnabled && !chainActive && !ui.goalSeekOn && ui.horizonUnit !== "months");
+    const mcEnabled = allView
+      ? (ui.mcEnabled && !ui.simpleMode)
+      : (!ui.simpleMode && ui.mcEnabled && !chainActive && !ui.goalSeekOn && ui.horizonUnit !== "months");
     let mcData = null;
 
-    if (mcEnabled) {
+    if (mcEnabled && allView) {
+      mcData = runCombinedMonteCarlo();
+    } else if (mcEnabled) {
       mcData = runMonteCarlo({
         principal: ui.principal,
         contribAmt,
@@ -3826,7 +4110,10 @@
       totalDepositsDisplay = dep;
     }
 
-    const totalInvestedDisplay = ui.principal + totalDepositsDisplay;
+    // In the combined view the starting capital is every account's, not the one
+    // whose inputs happen to be mirrored into the form.
+    const startingCapital = allView ? num(baseOut.combinedPrincipal, 0) : ui.principal;
+    const totalInvestedDisplay = startingCapital + totalDepositsDisplay;
     const endingNominal = mcData ? mcData.p50[mcData.p50.length - 1] : baseOut.ending;
     const endingDisplay = ui.realMode ? discountValue(endingNominal, years, ui.inflationRate / 100) : endingNominal;
     const totalInterestDisplay = endingDisplay - totalInvestedDisplay;
@@ -3855,7 +4142,20 @@
       kInt.textContent = fmt0.format(totalInterestDisplay);
       kInt.classList.toggle("neg", totalInterestDisplay < 0);
     }
-    if (kEir) kEir.textContent = (effectiveAnnualRate === null) ? "-" : (effectiveAnnualRate * 100).toFixed(2) + "%";
+    if (kEir) {
+      if (allView) {
+        // There is no single effective rate across accounts that disagree.
+        const rates = [...new Set(appState.accounts.map(a => num(a.state?.ui?.rateBase, 0)))];
+        if (rates.length === 1) {
+          const eff = (Math.pow(1 + (rates[0] / 100) / 12, 12) - 1) * 100;
+          kEir.textContent = eff.toFixed(2) + "%";
+        } else {
+          kEir.textContent = "Mixed";
+        }
+      } else {
+        kEir.textContent = (effectiveAnnualRate === null) ? "-" : (effectiveAnnualRate * 100).toFixed(2) + "%";
+      }
+    }
 
     const pTitle = $("projectedTitle");
     if (pTitle) pTitle.textContent = `Projected Net Worth (Year ${Math.round(years)})`;
@@ -3939,7 +4239,11 @@
     const chartSubtitle = $("chartSubtitle");
     if (chartSubtitle) {
       let what;
-      if (chainActive) {
+      if (allView && mcEnabled && mcData) {
+        what = `${appState.accounts.length} accounts combined, median of ${mcData.runs.toLocaleString()} shared-market trials`;
+      } else if (allView) {
+        what = `${appState.accounts.length} accounts combined over ${Math.round(years)} years`;
+      } else if (chainActive) {
         const n = appState.scenarios.length;
         what = `${n} chained phase${n === 1 ? "" : "s"} over ${Math.round(years)} years`;
       } else if (mcEnabled && mcData) {
@@ -3985,7 +4289,16 @@
       const freqLabel = ui.contribFreq === "annual" ? "annual" : "monthly";
       const msText = msCount ? ` You modeled ${msCount} milestone${msCount === 1 ? "" : "s"} along the way.` : "";
       const delayText = (ui.delayEnabled && delayedSeries) ? ` Waiting ${Math.round(ui.delayYears)} years costs about ${fmt0.format(opportunityCostDisplay || 0)}.` : "";
-      summary.innerHTML = `With ${fmt0.format(ui.principal)} starting and ${fmt0.format(contribAmt)} ${freqLabel} contributions at ${ui.rateBase}% for ${Math.round(years)} years, the model projects <strong>${fmt0.format(endingDisplay)}</strong>.${msText}${delayText}`;
+      if (allView) {
+        // Describing one account's inputs next to the combined total would be a lie.
+        const names = appState.accounts.map(a => a.name);
+        const listed = names.length > 1
+          ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+          : names[0];
+        summary.innerHTML = `Across ${listed}, starting with ${fmt0.format(startingCapital)} and paying in ${fmt0.format(totalDepositsDisplay)} over ${Math.round(years)} years, the model projects <strong>${fmt0.format(endingDisplay)}</strong>.`;
+      } else {
+        summary.innerHTML = `With ${fmt0.format(ui.principal)} starting and ${fmt0.format(contribAmt)} ${freqLabel} contributions at ${ui.rateBase}% for ${Math.round(years)} years, the model projects <strong>${fmt0.format(endingDisplay)}</strong>.${msText}${delayText}`;
+      }
     }
 
     const milestoneInfo = {
@@ -4006,6 +4319,7 @@
 
     appState.chart.lastData = chartData;
     requestDraw();
+    if (allView) renderAccountsBreakdown(baseOut, ui.realMode ? ui.inflationRate / 100 : 0);
     renderComparisonTable();
     // An open data table tracks the projection instead of going stale.
     if ($("dataTableWrap") && !$("dataTableWrap").hidden) renderDataTable();
@@ -5155,6 +5469,303 @@
     if (btn) btn.setAttribute("aria-expanded", "false");
   }
 
+  /* ---- Accounts: rendering and the combined view -------------------------- */
+
+  function renderAccountTabs() {
+    const bar = $("accountBar");
+    if (!bar) return;
+    bar.innerHTML = "";
+    const allActive = isAllAccountsView();
+
+    appState.accounts.forEach(acct => {
+      const isActive = !allActive && acct.id === appState.activeAccountId;
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "acctTab" + (isActive ? " isActive" : "");
+      tab.setAttribute("aria-pressed", isActive ? "true" : "false");
+      // Rename is otherwise undiscoverable.
+      tab.title = isActive ? "Click again to rename" : `Switch to ${acct.name}`;
+      tab.innerHTML = `<span class="acctLabel">${escapeHtml(acct.name)}</span>` +
+        (appState.accounts.length > 1 ? `<span class="acctClose" role="button" tabindex="-1" aria-label="Remove ${escapeHtml(acct.name)}" title="Remove account">&times;</span>` : "");
+
+      tab.addEventListener("click", (e) => {
+        if (e.target?.classList?.contains("acctClose")) {
+          e.stopPropagation();
+          removeAccount(acct.id);
+          return;
+        }
+        // A second click on the account you are already in turns the name editable.
+        if (isActive) {
+          startRenameAccount(tab, acct);
+          return;
+        }
+        switchAccount(acct.id);
+      });
+      bar.appendChild(tab);
+    });
+
+    if (appState.accounts.length < MAX_ACCOUNTS) {
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "acctAdd";
+      add.textContent = "+ Add account";
+      add.addEventListener("click", addAccount);
+      bar.appendChild(add);
+    }
+
+    if (appState.accounts.length > 1) {
+      const all = document.createElement("button");
+      all.type = "button";
+      all.className = "acctTab isAll" + (allActive ? " isActive" : "");
+      all.setAttribute("aria-pressed", allActive ? "true" : "false");
+      all.style.marginLeft = "auto";
+      all.textContent = `All accounts (${appState.accounts.length})`;
+      all.addEventListener("click", () => switchAccount(ALL_ACCOUNTS));
+      bar.appendChild(all);
+    }
+  }
+
+  function startRenameAccount(tab, acct) {
+    const label = tab.querySelector(".acctLabel");
+    if (!label) return;
+    const input = document.createElement("input");
+    input.className = "acctName";
+    input.value = acct.name;
+    input.size = Math.max(4, acct.name.length);
+    label.replaceWith(input);
+    input.focus();
+    input.select();
+    // Committing only on blur meant a rename could be lost if focus never landed
+    // on the field; change and blur both settle it, guarded against firing twice.
+    let done = false;
+    const commit = () => {
+      if (done) return;
+      done = true;
+      renameAccount(acct.id, input.value);
+    };
+    input.addEventListener("blur", commit);
+    input.addEventListener("change", commit);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { e.preventDefault(); input.value = acct.name; input.blur(); }
+    });
+  }
+
+  // Each account keeps its own settings but is run out to the longest horizon, so
+  // the total is a like-for-like picture over one shared timeline.
+  function combinedHorizonYears() {
+    let maxY = 0;
+    appState.accounts.forEach(a => {
+      const ui = a.state?.ui || {};
+      const raw = num(ui.yearsRaw, 0);
+      const yrs = (ui.horizonUnit === "months") ? raw / 12 : raw;
+      if (yrs > maxY) maxY = yrs;
+    });
+    return maxY;
+  }
+
+  function accountRunParams(acct, years) {
+    const ui = acct.state?.ui || {};
+    const msSrc = (acct.state?.milestonesEnabled && Array.isArray(acct.state?.milestones)) ? acct.state.milestones : [];
+    return {
+      principal: num(ui.principal, 0),
+      contribAmt: num(ui.contrib, 0),
+      contribFreq: ui.contribFreq || "monthly",
+      years,
+      aprPercent: num(ui.rateBase, 0),
+      rateLow: num(ui.rateLow, 0),
+      rateHigh: num(ui.rateHigh, 0),
+      contribIncreasePct: num(ui.contribIncrease, 0) / 100,
+      maxMonthlyContrib: num(ui.maxContrib, 0),
+      milestones: normalizeMilestonesFrom(years, msSrc),
+      taxPct: ui.taxEnabled ? num(ui.taxRate, 0) / 100 : 0,
+      retireEnabled: !!ui.retireEnabled,
+      retireAtYear: num(ui.retireAtYear, 0),
+      withdrawMonthly: num(ui.withdrawMonthly, 0),
+      inflationPct: num(ui.inflationRate, 0) / 100,
+      withdrawIndexToInflation: typeof ui.withdrawInflationToggle === "boolean" ? ui.withdrawInflationToggle : true,
+      contribStartMonth: 1
+    };
+  }
+
+  function computeCombinedDeterministic() {
+    const years = combinedHorizonYears();
+    if (!(years > 0) || !appState.accounts.length) return null;
+    const maxYear = Math.max(0, Math.round(years));
+    const monthsTotal = maxYear * 12;
+
+    const seriesYearly = new Array(maxYear + 1).fill(0);
+    const netContribSeriesYearly = new Array(maxYear + 1).fill(0);
+    const growthSeriesYearly = new Array(maxYear + 1).fill(0);
+    const scheduleMonthly = Array.from({ length: monthsTotal }, (_, i) => ({
+      month: i + 1, contribution: 0, retirementWithdrawal: 0, interest: 0, ending: 0, eventDelta: 0
+    }));
+    const perAccount = [];
+    let ending = 0;
+    let combinedPrincipal = 0;
+    let depletionYear = null;
+
+    appState.accounts.forEach(acct => {
+      const params = accountRunParams(acct, years);
+      const out = computeDeterministic(params);
+      perAccount.push({ id: acct.id, name: acct.name, out });
+      ending += out.ending;
+      combinedPrincipal += clamp(params.principal, 0);
+      for (let y = 0; y <= maxYear; y++) {
+        seriesYearly[y] += num(out.seriesYearly[y], 0);
+        netContribSeriesYearly[y] += num(out.netContribSeriesYearly[y], 0);
+        growthSeriesYearly[y] += num(out.growthSeriesYearly[y], 0);
+      }
+      (out.scheduleMonthly || []).forEach((row, i) => {
+        if (i >= scheduleMonthly.length) return;
+        scheduleMonthly[i].contribution += num(row.contribution, 0);
+        scheduleMonthly[i].retirementWithdrawal += num(row.retirementWithdrawal, 0);
+        scheduleMonthly[i].interest += num(row.interest, 0);
+        scheduleMonthly[i].ending += num(row.ending, 0);
+      });
+      if (out.depletionYear !== null && (depletionYear === null || out.depletionYear < depletionYear)) {
+        depletionYear = out.depletionYear;
+      }
+    });
+
+    const eventInfoYearly = [];
+    for (let y = 0; y <= maxYear; y++) {
+      const v = seriesYearly[y];
+      eventInfoYearly[y] = { year: y, pre: v, post: v, delta: 0, items: [], months: [], tYears: y };
+    }
+
+    const cross = computeCrossoverFromSchedule({ scheduleMonthly });
+    return {
+      years,
+      monthsTotal,
+      ending,
+      combinedPrincipal,
+      seriesYearly,
+      netContribSeriesYearly,
+      growthSeriesYearly,
+      scheduleMonthly,
+      eventInfoYearly,
+      crossoverYear: cross.year,
+      crossoverText: cross.year === null ? "" : `Growth surpasses contributions in Year ${cross.year}`,
+      depletionYear,
+      depletionText: depletionYear === null ? "" : `An account is exhausted in Year ${depletionYear}`,
+      milestoneTotals: { in: 0, out: 0, net: 0 },
+      perAccount
+    };
+  }
+
+  /* Combined Monte Carlo.
+     Percentiles cannot be summed: the 10th percentile of a total is not the total
+     of the 10th percentiles, because accounts do not have their bad year on
+     separate occasions. So every account is walked inside the SAME trial and the
+     percentiles are taken over the summed outcomes.
+
+     The monthly shock is shared across accounts too. Holdings in one portfolio are
+     driven by the same market, so drawing independently would invent
+     diversification that does not exist and produce a falsely narrow band. Each
+     account still scales that shock by its own volatility. */
+  function runCombinedMonteCarlo() {
+    const years = combinedHorizonYears();
+    const yearsInt = Math.max(0, Math.round(years));
+    if (!(yearsInt > 0) || !appState.accounts.length) return null;
+    const monthsTotal = yearsInt * 12;
+    const accountCount = appState.accounts.length;
+    const runs = Math.max(
+      MC_MIN_RUNS,
+      Math.min(MC_MAX_RUNS, Math.round(MC_STEP_BUDGET / (monthsTotal * accountCount)))
+    );
+
+    const specs = appState.accounts.map(acct => {
+      const params = accountRunParams(acct, years);
+      return {
+        params,
+        norm: normalizeRunParams(params),
+        ms: bucketMilestonesByMonth(params.milestones, monthsTotal),
+        log: lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh)
+      };
+    });
+
+    const rng = mulberry32(MC_SEED);
+    const nextNormal = makeNormal(rng);
+    const buckets = Array.from({ length: yearsInt + 1 }, () => []);
+    const shocks = new Float64Array(monthsTotal + 1);
+    let ruinCount = 0;
+    let endingSum = 0;
+
+    for (let i = 0; i < runs; i++) {
+      // One market draw per month, reused by every account in this trial.
+      for (let m = 1; m <= monthsTotal; m++) shocks[m] = nextNormal();
+
+      const totals = new Array(yearsInt + 1).fill(0);
+      let anyDepleted = false;
+
+      specs.forEach(spec => {
+        const yearly = [];
+        const rateForMonth = (m) => Math.exp(spec.log.muLogM + spec.log.sigmaLogM * shocks[m]) - 1;
+        const run = walkMonths(spec.norm, spec.ms, rateForMonth, {
+          onStart(balance) { yearly[0] = balance; },
+          onMonth(step) {
+            if (step.month % 12 === 0) yearly[Math.round(step.month / 12)] = step.balance;
+          }
+        });
+        if (run.depletionMonth !== null) anyDepleted = true;
+        for (let y = 0; y <= yearsInt; y++) {
+          const v = (typeof yearly[y] === "number") ? yearly[y] : (yearly[y - 1] ?? run.balance);
+          yearly[y] = v;
+          totals[y] += v;
+        }
+      });
+
+      if (anyDepleted) ruinCount++;
+      endingSum += totals[yearsInt];
+      for (let y = 0; y <= yearsInt; y++) buckets[y].push(totals[y]);
+    }
+
+    const p10 = [], p50 = [], p90 = [];
+    for (let y = 0; y <= yearsInt; y++) {
+      const arr = buckets[y].slice().sort((a, b) => a - b);
+      p10[y] = percentile(arr, 0.1);
+      p50[y] = percentile(arr, 0.5);
+      p90[y] = percentile(arr, 0.9);
+    }
+    return { p10, p50, p90, runs, ruinRate: runs > 0 ? ruinCount / runs : 0, meanEnding: runs > 0 ? endingSum / runs : 0 };
+  }
+
+  function renderAccountsBreakdown(combined, realPct) {
+    const list = $("breakdownList");
+    const note = $("breakdownNote");
+    const sub = $("breakdownSubtitle");
+    if (!list) return;
+    if (!combined) { list.innerHTML = ""; return; }
+
+    const years = combined.years;
+    const total = combined.ending || 0;
+    list.innerHTML = combined.perAccount.map(entry => {
+      const nominal = entry.out.ending;
+      const shown = realPct > 0 ? discountValue(nominal, years, realPct) : nominal;
+      const share = total > 0 ? (nominal / total) * 100 : 0;
+      const acctUi = appState.accounts.find(a => a.id === entry.id)?.state?.ui || {};
+      const ownYears = (acctUi.horizonUnit === "months") ? num(acctUi.yearsRaw, 0) / 12 : num(acctUi.yearsRaw, 0);
+      const meta = `${num(acctUi.rateBase, 0)}% a year${ownYears && Math.round(ownYears) !== Math.round(years) ? ` - own horizon ${Math.round(ownYears)}y` : ""}`;
+      return `<div class="breakdownRow">
+        <div><div class="breakdownName">${escapeHtml(entry.name)}</div><div class="breakdownMeta">${escapeHtml(meta)}</div></div>
+        <div><div class="breakdownValue">${fmt0.format(shown)}</div><div class="breakdownShare">${share.toFixed(1)}% of total</div></div>
+      </div>`;
+    }).join("");
+
+    if (sub) sub.textContent = `Combined position across ${combined.perAccount.length} accounts over ${Math.round(years)} years.`;
+    if (note) {
+      const mismatch = combined.perAccount.some(entry => {
+        const acctUi = appState.accounts.find(a => a.id === entry.id)?.state?.ui || {};
+        const ownYears = (acctUi.horizonUnit === "months") ? num(acctUi.yearsRaw, 0) / 12 : num(acctUi.yearsRaw, 0);
+        return Math.round(ownYears) !== Math.round(years);
+      });
+      note.textContent = mismatch
+        ? `Accounts have different horizons, so each one is projected out to the longest (${Math.round(years)} years) under its own settings.`
+        : "";
+    }
+  }
+
   function bindEvents() {
     const inputIds = [
       "principal","rateBase","contrib","contribIncrease","maxContrib","years","rateLow","rateHigh",
@@ -5324,6 +5935,17 @@
       });
     }
 
+    // Mirrors the per-account Monte Carlo switch, which is out of reach while the
+    // combined view is showing.
+    const combinedMc = $("combinedMcToggle");
+    if (combinedMc) {
+      combinedMc.addEventListener("change", () => {
+        appState.ui.mcEnabled = !!combinedMc.checked;
+        if ($("mcToggle")) $("mcToggle").checked = appState.ui.mcEnabled;
+        calculate();
+      });
+    }
+
     const tableClose = $("dataTableClose");
     if (tableClose) tableClose.addEventListener("click", () => {
       const wrap = $("dataTableWrap");
@@ -5415,15 +6037,22 @@
     // Read the markup's defaults first and keep a pristine copy: that snapshot is
     // what Reset restores to, so it must be captured before anything is restored.
     initStateFromDOM();
-    shippedDefaults = deepCopy(persistableState());
+    // Captured before any restore: this is the pristine plan Reset and new
+    // accounts start from. Taken from the mirror, not the (still empty) account set.
+    shippedDefaults = { ui: { ...appState.ui } };
 
     const restored = restoreState();
+    if (!appState.accounts.length) {
+      appState.accounts = [makeAccount("Account 1", captureAccountState())];
+      appState.activeAccountId = appState.accounts[0].id;
+    }
 
     suppressEvents = true;
     applyStateToUI();
     suppressEvents = false;
     updateUIState();
     bindEvents();
+    renderAccountTabs();
     renderMilestones();
     renderScenarios();
     if (restored) renderComparisonTable();
