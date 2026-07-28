@@ -17,7 +17,9 @@
     --border:#d2deec;
     --border-strong:#bfd0e2;
     --text:#16283c;
-    --muted:#6a7d92;
+    /* Previous #6a7d92 sat at ~4.0:1 on white -- under AA for 11-12px label text. */
+    --muted:#5a6e86;
+    --label:#42566d;
     --accent:#2563eb;
     --accent-2:#0e7490;
     --accent-soft:#dbeafe;
@@ -86,37 +88,55 @@
     display:grid;
     grid-template-columns:1.2fr 0.9fr;
     gap:18px;
+    align-items:start;
+  }
+  /* The answer follows you down the input list instead of scrolling away. */
+  @media (min-width:981px){
+    .resultsCard{
+      position:sticky;
+      top:24px;
+    }
   }
   .card{
     background:linear-gradient(180deg,var(--card),var(--card-2));
     border:1px solid var(--border);
-    border-radius:24px;
-    padding:16px;
+    border-radius:22px;
+    padding:20px;
     box-shadow:var(--shadow-edge),var(--shadow-soft);
+  }
+  /* The result is the payoff, so it reads as the emphasised surface. */
+  .resultsCard{
+    background:linear-gradient(180deg,#ffffff,#f2f7ff);
+    border-color:#c3d6ec;
   }
   .cardHeader{
     display:flex;
     align-items:center;
     justify-content:space-between;
     gap:12px;
-    margin-bottom:12px;
+    margin-bottom:16px;
+    padding-bottom:14px;
+    border-bottom:1px solid var(--border);
   }
   .cardTitle{
     font-family:var(--display);
-    font-size:18px;
+    font-size:17px;
     font-weight:700;
+    letter-spacing:-0.1px;
   }
   .inputGrid{
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:10px;
+    gap:12px 14px;
   }
   label{
     font-size:12px;
-    color:var(--muted);
+    font-weight:500;
+    color:var(--label);
     display:flex;
     flex-direction:column;
     gap:6px;
+    letter-spacing:0.1px;
   }
   input,select,button,textarea{
     font-family:var(--body);
@@ -129,58 +149,218 @@
     padding:10px 12px;
     font-size:14px;
     outline:none;
-    transition:border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease, transform 0.22s ease;
+    /* No transform here: scaling on focus nudged neighbouring fields around. */
+    transition:border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
   }
   input:focus,select:focus{
     border-color:#2563eb;
-    box-shadow:0 0 0 3px rgba(37,99,235,0.16),0 10px 18px rgba(37,99,235,0.1);
-    background:#fbfdff;
-    transform:scale(1.02);
+    box-shadow:0 0 0 3px rgba(37,99,235,0.18);
+    background:#fdfeff;
   }
+  /* Money and percent fields carry their unit in the box rather than only the label. */
+  .field{ position:relative; display:block; }
+  .field > input{ width:100%; }
+  .field::before{
+    content:attr(data-prefix);
+    position:absolute;
+    left:12px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:13px;
+    color:#8798ac;
+    pointer-events:none;
+  }
+  .field::after{
+    content:attr(data-suffix);
+    position:absolute;
+    right:12px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:12.5px;
+    color:#8798ac;
+    pointer-events:none;
+  }
+  .field[data-prefix] > input{ padding-left:24px; }
+  .field[data-suffix] > input{ padding-right:30px; }
   input:disabled,select:disabled{
     opacity:0.5;
     cursor:not-allowed;
   }
+  /* The generic `label` rule sets flex-direction:column, which was stacking every
+     checkbox on top of its own text. Toggles must explicitly opt back into a row. */
   .toggle{
     display:inline-flex;
+    flex-direction:row;
     align-items:center;
-    gap:8px;
-    font-size:12px;
+    gap:9px;
+    font-size:12.5px;
+    font-weight:500;
     color:var(--text);
     cursor:pointer;
     user-select:none;
+    line-height:1.3;
   }
-  .toggle input{ width:16px; height:16px; }
+  .toggle input[type="checkbox"]{
+    appearance:none;
+    -webkit-appearance:none;
+    flex:0 0 auto;
+    position:relative;
+    width:34px;
+    height:20px;
+    margin:0;
+    padding:0;
+    border-radius:999px;
+    background:#cbd9e8;
+    border:1px solid #b6c8dc;
+    cursor:pointer;
+    transition:background-color 0.18s ease, border-color 0.18s ease;
+  }
+  .toggle input[type="checkbox"]::after{
+    content:"";
+    position:absolute;
+    top:1px;
+    left:1px;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:#ffffff;
+    box-shadow:0 1px 3px rgba(15,23,42,0.3);
+    transition:transform 0.18s ease;
+  }
+  .toggle input[type="checkbox"]:checked{
+    background:var(--accent);
+    border-color:var(--accent);
+  }
+  .toggle input[type="checkbox"]:checked::after{ transform:translateX(14px); }
+  .toggle input[type="checkbox"]:focus-visible{
+    outline:none;
+    box-shadow:0 0 0 3px rgba(37,99,235,0.28);
+  }
+  .toggle input[type="checkbox"]:disabled{ opacity:0.45; cursor:not-allowed; }
+  .toggle:has(input:disabled){ opacity:0.6; cursor:not-allowed; }
   .accordion{
     margin-top:14px;
     border:1px solid var(--border);
     border-radius:16px;
-    padding:10px 12px;
+    padding:12px 14px;
     background:var(--surface-2);
   }
   details summary{
     cursor:pointer;
     font-size:13px;
-    color:#25405f;
+    font-weight:600;
+    color:#22405f;
     list-style:none;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:2px 0;
   }
   details summary::-webkit-details-marker{ display:none; }
+  details summary:focus-visible{
+    outline:none;
+    box-shadow:0 0 0 3px rgba(37,99,235,0.22);
+    border-radius:8px;
+  }
+  /* Chevron so a collapsed section reads as openable instead of as a dead heading. */
+  details summary::after{
+    content:"";
+    width:7px;
+    height:7px;
+    margin-left:auto;
+    flex:0 0 auto;
+    border-right:2px solid #90a5bc;
+    border-bottom:2px solid #90a5bc;
+    transform:rotate(45deg) translate(-2px,-2px);
+    transition:transform 0.2s ease;
+  }
+  details[open] summary::after{ transform:rotate(-135deg) translate(-2px,-2px); }
+  .summaryNote{
+    font-size:11px;
+    font-weight:500;
+    color:var(--muted);
+    background:rgba(37,99,235,0.08);
+    border:1px solid rgba(37,99,235,0.18);
+    border-radius:999px;
+    padding:2px 8px;
+  }
   .configGrid{
     margin-top:12px;
     display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
+    /* Two hard columns squeezed each option to ~225px, wrapping the labels.
+       Auto-fit drops to one column before that happens. */
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
     gap:10px;
+  }
+  /* Each option becomes a discrete card so the switch, its value and its help text
+     read as one unit instead of a loose field of floating controls. */
+  .configGrid > div{
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:11px 12px;
+    background:#ffffff;
+  }
+  .configGrid > div:has(input[type="checkbox"]:checked){
+    border-color:rgba(37,99,235,0.4);
+    background:linear-gradient(180deg,#ffffff,#f5f9ff);
   }
   .inlineRow{
     display:flex;
     align-items:center;
+    gap:10px;
+  }
+  .inlineRow > .toggle{ flex:1 1 auto; min-width:0; }
+  .inlineRow > input[type="number"]{ flex:0 0 auto; }
+  .inlineRow > .field{ flex:0 0 auto; width:94px; }
+  /* A value and its unit belong to one question, so they share one row instead of
+     spending a whole grid cell on "Contribution Frequency". */
+  .comboField{
+    display:flex;
     gap:8px;
+    align-items:stretch;
+  }
+  .comboField > .field{ flex:1 1 auto; min-width:0; }
+  .comboField > input{ flex:1 1 auto; min-width:0; }
+  .comboField > select{ flex:0 0 auto; width:112px; }
+  .refineHeader{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    margin:22px 0 2px;
+  }
+  .refineTitle{
+    font-family:var(--display);
+    font-size:13px;
+    font-weight:700;
+    color:var(--label);
+    letter-spacing:0.2px;
+  }
+  .refineMeta{ font-size:11.5px; color:var(--muted); }
+  .refineGroup{ margin-top:8px; }
+  /* Shows what is switched on without making you open every section. */
+  .activeCount{
+    font-size:10.5px;
+    font-weight:600;
+    color:#1d4ed8;
+    background:rgba(37,99,235,0.12);
+    border:1px solid rgba(37,99,235,0.28);
+    border-radius:999px;
+    padding:2px 8px;
+    letter-spacing:0.2px;
+  }
+  .activeCount[hidden]{ display:none; }
+  .labelMeta{
+    font-weight:400;
+    color:#8798ac;
+    font-size:11px;
   }
   .hint{
-    font-size:11px;
+    font-size:11.5px;
     color:var(--muted);
-    margin-top:4px;
+    margin-top:6px;
+    line-height:1.45;
   }
+  .hint:empty{ display:none; }
   .resultsCard .headlineRow{
     display:flex;
     align-items:center;
@@ -194,11 +374,18 @@
     font-size:11px;
     border-radius:999px;
   }
+  /* This number is the answer the whole page exists to produce, so it gets the
+     largest type on screen and tabular figures so it stops jittering as it animates. */
   .bigNumber{
-    font-size:34px;
+    font-size:40px;
+    line-height:1.05;
     font-weight:700;
-    margin:12px 0 8px;
-    font-family:var(--mono);
+    margin:14px 0 8px;
+    font-family:var(--display);
+    letter-spacing:-0.8px;
+    color:#0f2238;
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;
   }
   .growthRow{
     display:flex;
@@ -206,7 +393,8 @@
     gap:8px;
     color:#15803d;
     font-size:12px;
-    margin-bottom:12px;
+    margin-bottom:14px;
+    flex-wrap:wrap;
   }
   .growthRow .neg{ color:#dc2626; }
   .kpiGrid{
@@ -229,12 +417,19 @@
   }
   .kpiLabel{
     font-size:11px;
+    font-weight:500;
     color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.5px;
   }
   .kpiValue{
-    font-family:var(--mono);
-    font-size:16px;
-    margin-top:6px;
+    font-family:var(--display);
+    font-size:17px;
+    font-weight:650;
+    margin-top:5px;
+    color:#17304b;
+    font-variant-numeric:tabular-nums;
+    font-feature-settings:"tnum" 1;
   }
   .kpiValue.neg{ color:#dc2626; }
   .kpiWide{
@@ -244,12 +439,15 @@
     justify-content:space-between;
     gap:12px;
   }
+  /* Efficiency tiers used to wash the whole tile in colour, which fought the blue
+     palette. A left rail carries the same signal without shouting. */
   .effTile{
     border-color:var(--border);
+    border-left-width:3px;
   }
-  .eff-gray{ background:rgba(148,163,184,0.18); }
-  .eff-blue{ background:rgba(59,130,246,0.18); }
-  .eff-gold{ background:rgba(245,158,11,0.16); }
+  .eff-gray{ border-left-color:#94a3b8; }
+  .eff-blue{ border-left-color:#3b82f6; }
+  .eff-gold{ border-left-color:#d97706; }
   .summaryBox{
     margin-top:12px;
     font-size:13px;
@@ -271,15 +469,65 @@
     justify-content:space-between;
     gap:12px;
   }
+  .chartHeading{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    min-width:0;
+  }
   .chartTitle{
     font-family:var(--display);
     font-size:17px;
+    font-weight:700;
+    letter-spacing:-0.1px;
+  }
+  /* Says what is actually plotted, which changes with mode. */
+  .chartSubtitle{
+    font-size:11.5px;
+    color:var(--muted);
   }
   .chartMenu{
     display:flex;
     align-items:center;
-    gap:8px;
+    gap:10px;
     flex-wrap:wrap;
+  }
+  /* One joined control instead of three loose buttons. */
+  .segmented{
+    display:inline-flex;
+    align-items:stretch;
+    border:1px solid #c9d9eb;
+    border-radius:10px;
+    overflow:hidden;
+    background:#ffffff;
+  }
+  .segmented > button{
+    border:none;
+    border-radius:0;
+    background:#ffffff;
+    color:#2c4462;
+    font-weight:550;
+    box-shadow:none;
+    height:32px;
+    min-width:32px;
+    padding:0 10px;
+    font-size:13px;
+    line-height:1;
+  }
+  .segmented > button + button{ border-left:1px solid #dde8f4; }
+  .segmented > button:hover:not(:disabled){
+    background:#f1f7ff;
+    transform:none;
+    box-shadow:none;
+    filter:none;
+  }
+  .segmented > button:active:not(:disabled){ background:#e7f0fd; transform:none; box-shadow:none; }
+  .segmented > button:disabled{ opacity:0.38; }
+  .segLevel{
+    min-width:52px;
+    font-size:12px;
+    font-variant-numeric:tabular-nums;
+    color:var(--muted);
   }
   button{
     border:none;
@@ -301,15 +549,39 @@
     transform:translateY(0);
     box-shadow:0 4px 10px rgba(37,99,235,0.16);
   }
+  button:focus-visible{
+    outline:none;
+    box-shadow:0 0 0 3px rgba(37,99,235,0.32);
+  }
   button.secondary{
-    background:#eef4fc;
+    background:#ffffff;
     border:1px solid #c9d9eb;
-    color:var(--text);
+    color:#2c4462;
+    font-weight:550;
     box-shadow:none;
   }
+  button.secondary:hover{
+    background:#f4f9ff;
+    border-color:#adc6e0;
+  }
+  /* Square controls for the zoom cluster so they stop reading as text buttons. */
+  .iconBtn{
+    width:32px;
+    height:32px;
+    padding:0;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    font-size:15px;
+    line-height:1;
+  }
   button:disabled{
-    opacity:0.5;
+    opacity:0.45;
     cursor:not-allowed;
+  }
+  button:disabled:hover{
+    transform:none;
+    filter:none;
   }
   .chartWrap{
     position:relative;
@@ -430,23 +702,75 @@
     display:inline-flex;
     align-items:center;
     gap:8px;
-    padding:6px 10px;
+    padding:6px 6px 6px 11px;
     border-radius:999px;
     border:1px solid var(--border);
-    background:var(--surface-2);
+    background:#ffffff;
     font-size:12px;
+    font-weight:500;
+    color:#2c4462;
     cursor:pointer;
+    transition:border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .scenarioChip:hover{ border-color:#adc6e0; background:#f6faff; }
+  /* Selection used to be a 0.7 opacity difference, which was near invisible. */
+  .scenarioChip.isActive{
+    border-color:var(--accent);
+    background:#eaf2ff;
+    color:#12376f;
+    font-weight:600;
+    box-shadow:0 0 0 2px rgba(37,99,235,0.14);
   }
   .scenarioChip .dot{
     width:10px;
     height:10px;
     border-radius:50%;
+    flex:0 0 auto;
   }
   .scenarioChip .close{
-    margin-left:6px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:19px;
+    height:19px;
+    border-radius:50%;
+    margin-left:2px;
     cursor:pointer;
-    opacity:0.7;
+    color:#65788e;
+    font-size:14px;
+    line-height:1;
   }
+  .scenarioChip .close:hover{ background:rgba(220,38,38,0.12); color:#b91c1c; }
+  .scenarioEmpty{
+    margin-top:12px;
+    padding:16px 18px;
+    border:1px dashed var(--border-strong);
+    border-radius:16px;
+    background:var(--surface-2);
+  }
+  .scenarioEmptyTitle{
+    font-size:13px;
+    font-weight:650;
+    color:var(--label);
+    margin-bottom:5px;
+  }
+  .scenarioEmptyBody{
+    font-size:12px;
+    line-height:1.5;
+    color:var(--muted);
+    max-width:62ch;
+  }
+  .chainNotice{
+    margin-top:10px;
+    padding:10px 12px;
+    border-radius:12px;
+    font-size:11.5px;
+    line-height:1.5;
+    color:#12376f;
+    background:rgba(37,99,235,0.08);
+    border:1px solid rgba(37,99,235,0.22);
+  }
+  .chainNotice[hidden]{ display:none; }
   .comparisonTable{
     width:100%;
     border-collapse:collapse;
@@ -470,14 +794,17 @@
     margin-top:10px;
   }
   .mutedSmall{ font-size:11px; color:var(--muted); }
+  /* Nine fixed columns forced every field to ~70-110px and clipped the labels.
+     Auto-fit lets the row reflow instead of cramming. */
   .milestoneRow{
     display:grid;
-    grid-template-columns:64px 90px 90px 110px 110px 1fr 80px 70px 70px;
-    gap:8px;
-    padding:10px;
+    grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
+    gap:10px;
+    padding:12px;
     border:1px solid var(--border);
     border-radius:16px;
-    background:var(--surface-2);
+    background:#ffffff;
+    align-items:end;
   }
   .milestoneRow .msLabel{
     font-size:10px;
@@ -566,7 +893,24 @@
     border:1px solid rgba(37,99,235,0.22);
     color:#1d4ed8;
   }
-  .simpleMode .accordion, .simpleMode #milestonesDetails { opacity:0.6; pointer-events:none; }
+  /* Ghosting these at 0.6 opacity read as a rendering fault. Simple mode should
+     mean fewer things on screen, so the advanced panels are removed outright and
+     replaced by a line explaining where they went. */
+  .simpleMode .accordion,
+  .simpleMode .refineHeader{ display:none; }
+  .simpleNote{ display:none; }
+  .simpleMode .simpleNote{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-top:14px;
+    padding:10px 12px;
+    border:1px dashed var(--border-strong);
+    border-radius:14px;
+    background:var(--surface-2);
+    font-size:12px;
+    color:var(--muted);
+  }
   .fullscreen{
     position:fixed !important;
     inset:18px !important;
@@ -624,6 +968,17 @@
     .toggle{
       padding:8px 0;
     }
+    /* At 29px the heading wrapped to five lines and used the whole first screen. */
+    .titleCard{
+      flex-direction:column;
+      align-items:flex-start;
+      gap:10px;
+      padding:16px 18px;
+      border-radius:18px;
+    }
+    .title{ font-size:21px; line-height:1.2; }
+    .subtitle{ font-size:12px; margin-top:4px; }
+    .card{ padding:16px; border-radius:18px; }
     .scenarioBar{
       flex-wrap:nowrap;
       overflow-x:auto;
@@ -638,6 +993,18 @@
     .comparisonTable th,.comparisonTable td{
       white-space:nowrap;
       padding:12px 8px;
+    }
+    /* Side by side, the save button wrapped onto three lines. */
+    .scenariosCard .sectionHeader{
+      flex-direction:column;
+      align-items:stretch;
+      gap:12px;
+    }
+    .scenariosCard .sectionHeader button{ width:100%; }
+    .chainRow{
+      flex-direction:column;
+      align-items:flex-start;
+      gap:6px;
     }
   }
 </style>
@@ -655,139 +1022,177 @@
   <div class="mainGrid">
     <section class="card inputsCard">
       <div class="cardHeader">
-        <div class="cardTitle">Core Inputs</div>
-        <label class="toggle"><input id="simpleToggle" type="checkbox"> Simple Mode</label>
+        <div class="cardTitle">Your plan</div>
+        <label class="toggle"><input id="simpleToggle" type="checkbox"> Simple mode</label>
       </div>
 
+      <!-- Four questions, nothing else. Frequency and horizon unit ride along inside
+           their own field rather than occupying separate rows. -->
       <div class="inputGrid">
-        <label>Principal
-          <input id="principal" type="number" inputmode="decimal" min="0" step="1000" value="100000">
-        </label>
-        <label>Base APR (%)
-          <input id="rateBase" type="number" inputmode="decimal" min="0" step="0.1" value="7">
+        <label>Starting amount
+          <span class="field" data-prefix="$"><input id="principal" type="number" inputmode="decimal" min="0" step="1000" value="100000"></span>
         </label>
         <label>Contribution
-          <input id="contrib" type="number" inputmode="decimal" min="0" step="50" value="500">
+          <span class="comboField">
+            <span class="field" data-prefix="$"><input id="contrib" type="number" inputmode="decimal" min="0" step="50" value="500"></span>
+            <select id="contribFreq" aria-label="Contribution frequency">
+              <option value="monthly">Monthly</option>
+              <option value="annual">Annual</option>
+            </select>
+          </span>
         </label>
-        <label>Contribution Frequency
-          <select id="contribFreq">
-            <option value="monthly">Monthly</option>
-            <option value="annual">Annual</option>
-          </select>
+        <label>Expected return
+          <span class="field" data-suffix="%"><input id="rateBase" type="number" inputmode="decimal" min="0" step="0.1" value="7"></span>
         </label>
-        <label>Contribution Increase (%/yr)
-          <input id="contribIncrease" type="number" inputmode="decimal" min="0" step="0.1" value="0">
-        </label>
-        <label>Max Monthly Contribution
-          <input id="maxContrib" type="number" inputmode="decimal" min="0" step="100" value="0">
-        </label>
-        <label>Horizon Unit
-          <select id="horizonUnit">
-            <option value="years">Years</option>
-            <option value="months">Months</option>
-          </select>
-        </label>
-        <label>Years
-          <input id="years" type="number" inputmode="decimal" min="0" step="1" value="30">
+        <label>Time horizon
+          <span class="comboField">
+            <input id="years" type="number" inputmode="decimal" min="0" step="1" value="30">
+            <select id="horizonUnit" aria-label="Horizon unit">
+              <option value="years">Years</option>
+              <option value="months">Months</option>
+            </select>
+          </span>
         </label>
       </div>
 
-      <details class="accordion" open>
-        <summary>Configuration</summary>
+      <div class="simpleNote">Simple mode is on. Refinements are hidden - switch it off to bring them back.</div>
+
+      <!-- Refinements are grouped by what you are trying to do, collapsed by default,
+           each showing how many of its options are currently active. -->
+      <div class="refineHeader">
+        <span class="refineTitle">Refine your projection</span>
+        <span class="refineMeta">all optional</span>
+      </div>
+
+      <details class="accordion refineGroup">
+        <summary>Inflation &amp; tax <span class="activeCount" hidden></span></summary>
         <div class="configGrid">
           <div>
             <div class="inlineRow">
-              <label class="toggle"><input id="realToggle" type="checkbox"> Inflation Adjustment</label>
-              <input id="inflationRate" type="number" inputmode="decimal" min="0" step="0.1" value="2.5" style="max-width:90px">
+              <label class="toggle"><input id="realToggle" type="checkbox" data-feature> Adjust for inflation</label>
+              <span class="field" data-suffix="%"><input id="inflationRate" type="number" inputmode="decimal" min="0" step="0.1" value="2.5"></span>
             </div>
-            <div class="hint">Display in today's dollars when enabled.</div>
+            <div class="hint">Shows every figure in today's dollars.</div>
           </div>
 
           <div>
             <div class="inlineRow">
-              <label class="toggle"><input id="taxToggle" type="checkbox"> Tax Drag</label>
-              <input id="taxRate" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="25" style="max-width:90px">
+              <label class="toggle"><input id="taxToggle" type="checkbox" data-feature> Tax on gains</label>
+              <span class="field" data-suffix="%"><input id="taxRate" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="25"></span>
             </div>
             <div class="hint" id="taxHint"></div>
           </div>
+        </div>
+      </details>
+
+      <details class="accordion refineGroup">
+        <summary>Contributions <span class="activeCount" hidden></span></summary>
+        <div class="configGrid">
+          <div>
+            <label>Annual raise to contribution
+              <span class="field" data-suffix="%"><input id="contribIncrease" type="number" inputmode="decimal" min="0" step="0.1" value="0" data-feature-num></span>
+            </label>
+            <div class="hint">Increases what you put in each year.</div>
+          </div>
+
+          <div>
+            <label>Contribution cap <span class="labelMeta">0 = none</span>
+              <span class="field" data-prefix="$"><input id="maxContrib" type="number" inputmode="decimal" min="0" step="100" value="0" data-feature-num></span>
+            </label>
+            <div class="hint">Ceiling on the monthly amount.</div>
+          </div>
 
           <div>
             <div class="inlineRow">
-              <label class="toggle"><input id="goalToggle" type="checkbox"> Goal Seek</label>
+              <label class="toggle"><input id="goalToggle" type="checkbox" data-feature> Solve for contribution</label>
             </div>
             <div class="hint" id="goalHint">Solve the required contribution to hit a target.</div>
           </div>
 
           <div id="goalWrap" style="display:none">
-            <div class="inlineRow">
-              <input id="targetBalance" type="number" inputmode="decimal" min="0" step="1000" value="1000000" style="max-width:130px">
-              <input id="targetYears" type="number" inputmode="decimal" min="1" step="1" value="30" style="max-width:90px">
-            </div>
-            <div class="hint">Target balance and target years.</div>
-          </div>
-
-          <div>
-            <div class="inlineRow">
-              <label class="toggle"><input id="retireToggle" type="checkbox"> Retirement Bridge</label>
-            </div>
-            <div class="hint" id="retireHint"></div>
-          </div>
-
-          <div id="retireWrap" style="display:none">
-            <div class="inputGrid" style="grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;">
-              <label>Start Age
-                <input id="startAge" type="number" inputmode="decimal" min="0" step="1" placeholder="Optional">
+            <div class="inputGrid" style="gap:10px;">
+              <label>Target balance
+                <span class="field" data-prefix="$"><input id="targetBalance" type="number" inputmode="decimal" min="0" step="1000" value="1000000"></span>
               </label>
-              <label>Retire Age
-                <input id="retireAge" type="number" inputmode="decimal" min="0" step="1" placeholder="Optional">
-              </label>
-              <label>Retire At Year
-                <input id="retireAtYear" type="number" inputmode="decimal" min="0" step="1" value="20">
-              </label>
-              <label>Withdraw / Month
-                <input id="withdrawMonthly" type="number" inputmode="decimal" min="0" step="100" value="4000">
-              </label>
-            </div>
-            <label class="toggle" style="margin-top:6px;"><input id="withdrawInflationToggle" type="checkbox" checked> Index Withdrawals to Inflation</label>
-          </div>
-
-          <div>
-            <div class="inlineRow">
-              <label class="toggle"><input id="delayToggle" type="checkbox"> Cost of Waiting</label>
-              <input id="delayYears" type="number" inputmode="decimal" min="1" step="1" value="5" style="max-width:90px">
-            </div>
-            <div class="hint" id="delayHint"></div>
-          </div>
-
-          <div>
-            <div class="inlineRow">
-              <label class="toggle"><input id="mcToggle" type="checkbox"> Monte Carlo</label>
-            </div>
-            <div class="hint" id="mcHint">P10/P50/P90 fan uses a seeded Monte Carlo run.</div>
-          </div>
-
-          <div id="mcWrap">
-            <div class="inlineRow">
-              <label>Low APR (%)
-                <input id="rateLow" type="number" inputmode="decimal" min="-50" step="0.1" value="4">
-              </label>
-              <label>High APR (%)
-                <input id="rateHigh" type="number" inputmode="decimal" min="-50" step="0.1" value="9">
+              <label>By year
+                <input id="targetYears" type="number" inputmode="decimal" min="1" step="1" value="30">
               </label>
             </div>
           </div>
         </div>
       </details>
 
+      <details class="accordion refineGroup">
+        <summary>Retirement <span class="activeCount" hidden></span></summary>
+        <div class="configGrid">
+          <div>
+            <div class="inlineRow">
+              <label class="toggle"><input id="retireToggle" type="checkbox" data-feature> Retirement drawdown</label>
+            </div>
+            <div class="hint" id="retireHint">Stop contributing and start withdrawing at a chosen year.</div>
+          </div>
+
+          <div id="retireWrap" style="display:none">
+            <div class="inputGrid" style="gap:10px;">
+              <label>Start age <span class="labelMeta">optional</span>
+                <input id="startAge" type="number" inputmode="decimal" min="0" step="1" placeholder="e.g. 35">
+              </label>
+              <label>Retire age <span class="labelMeta">optional</span>
+                <input id="retireAge" type="number" inputmode="decimal" min="0" step="1" placeholder="e.g. 65">
+              </label>
+              <label>Retire at year
+                <input id="retireAtYear" type="number" inputmode="decimal" min="0" step="1" value="20">
+              </label>
+              <label>Withdraw / month
+                <span class="field" data-prefix="$"><input id="withdrawMonthly" type="number" inputmode="decimal" min="0" step="100" value="4000"></span>
+              </label>
+            </div>
+            <label class="toggle" style="margin-top:10px;"><input id="withdrawInflationToggle" type="checkbox" checked> Raise withdrawals with inflation</label>
+          </div>
+        </div>
+      </details>
+
+      <details class="accordion refineGroup">
+        <summary>Risk &amp; timing <span class="activeCount" hidden></span></summary>
+        <div class="configGrid">
+          <div>
+            <div class="inlineRow">
+              <label class="toggle"><input id="mcToggle" type="checkbox" data-feature> Model market swings</label>
+            </div>
+            <div class="hint" id="mcHint">Runs thousands of randomised markets for a P10/P50/P90 range.</div>
+          </div>
+
+          <div id="mcWrap">
+            <div class="inputGrid" style="gap:10px;">
+              <label>Weak year <span class="labelMeta">10th %</span>
+                <span class="field" data-suffix="%"><input id="rateLow" type="number" inputmode="decimal" min="-90" step="0.1" value="-13.5"></span>
+              </label>
+              <label>Strong year <span class="labelMeta">90th %</span>
+                <span class="field" data-suffix="%"><input id="rateHigh" type="number" inputmode="decimal" min="-90" step="0.1" value="27.5"></span>
+              </label>
+            </div>
+            <div class="hint">Defaults span a diversified equity portfolio (~16% annual volatility).</div>
+          </div>
+
+          <div>
+            <div class="inlineRow">
+              <label class="toggle"><input id="delayToggle" type="checkbox" data-feature> Cost of waiting</label>
+              <span class="field" data-suffix="yr"><input id="delayYears" type="number" inputmode="decimal" min="1" step="1" value="5"></span>
+            </div>
+            <div class="hint" id="delayHint">Compare against starting later.</div>
+          </div>
+        </div>
+      </details>
+
       <details class="accordion" id="milestonesDetails">
-        <summary>Life Events (Milestones)</summary>
-        <div class="inlineRow" style="margin:10px 0;">
-          <label class="toggle"><input id="milestonesToggle" type="checkbox"> Enable Milestones</label>
+        <summary>One-off Events <span class="summaryNote">optional</span></summary>
+        <div class="inlineRow" style="margin:12px 0;">
+          <label class="toggle"><input id="milestonesToggle" type="checkbox"> Enable one-off events</label>
           <button id="clearMilestones" type="button" class="secondary">Clear</button>
         </div>
-        <div id="milestonesDisabledNote" class="mutedSmall">Enable milestones to add one-time events.</div>
+        <div id="milestonesDisabledNote" class="mutedSmall">Turn this on to add a house deposit, an inheritance, or any other one-time cash movement.</div>
         <div id="milestoneList" style="display:flex; flex-direction:column; gap:10px; margin-top:8px;"></div>
-        <button id="addMilestone" type="button" class="secondary" style="margin-top:10px;">+ Add Event</button>
+        <button id="addMilestone" type="button" class="secondary" style="margin-top:12px;">+ Add Event</button>
       </details>
     </section>
 
@@ -797,7 +1202,7 @@
         <div class="badge" id="realModeBadge">Live</div>
         <button id="mobileResultsToggle" class="secondary mobileResultsToggle" type="button" aria-expanded="false">Details</button>
       </div>
-      <div class="bigNumber" id="projectedValue">-</div>
+      <div class="bigNumber" id="projectedValue" aria-live="polite" aria-atomic="true">-</div>
       <div class="growthRow">
         <span id="growthIcon">&#8599;</span>
         <span id="growthPercent">-</span>
@@ -847,13 +1252,20 @@
 
   <section class="card chartCard">
     <div class="chartHeader">
-      <div class="chartTitle">Total Savings</div>
+      <div class="chartHeading">
+        <div class="chartTitle">Balance over time</div>
+        <div class="chartSubtitle" id="chartSubtitle">-</div>
+      </div>
       <div class="chartMenu">
-        <label class="toggle"><input id="logScaleToggle" type="checkbox"> Log Scale</label>
-        <button id="zoomOut" type="button" class="secondary">-</button>
-        <button id="zoomIn" type="button" class="secondary">+</button>
-        <button id="zoomReset" type="button" class="secondary">Reset</button>
-        <button id="fullscreenToggle" type="button">Fullscreen</button>
+        <label class="toggle"><input id="logScaleToggle" type="checkbox"> Log scale</label>
+        <!-- Zoom reads as one control: the middle segment shows the current level
+             and resets it, so there is no separate indicator competing for space. -->
+        <div class="segmented" role="group" aria-label="Zoom">
+          <button id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out">&#8722;</button>
+          <button id="zoomReset" type="button" class="segLevel" title="Reset zoom">1.0&times;</button>
+          <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+        </div>
+        <button id="fullscreenToggle" type="button" class="secondary">Fullscreen</button>
       </div>
     </div>
     <div class="chartWrap" id="chartWrap">
@@ -861,22 +1273,35 @@
       <div id="chartTooltip" class="chartTooltip" style="display:none;"></div>
     </div>
     <div id="chartLegend" class="chartLegend"></div>
-    <div class="chartHint" id="chartHint">Drag milestones to reschedule events. Scroll to zoom, drag to pan.</div>
+    <div class="chartHint" id="chartHint">Scroll to zoom, drag to pan.</div>
   </section>
 
   <section class="card scenariosCard">
     <div class="sectionHeader">
-      <div class="cardTitle">Scenario Snapshots</div>
-      <button id="saveScenario" type="button">Save Scenario</button>
+      <div class="chartHeading">
+        <div class="cardTitle">Scenarios</div>
+        <div class="chartSubtitle">Snapshot the current plan, change something, then compare.</div>
+      </div>
+      <button id="saveScenario" type="button">Save current plan</button>
     </div>
+
+    <!-- Until something is saved the card was blank apart from a button, giving no
+         clue what a scenario is or why you would want one. -->
+    <div class="scenarioEmpty" id="scenarioEmpty">
+      <div class="scenarioEmptyTitle">Nothing saved yet</div>
+      <div class="scenarioEmptyBody">Save the plan you have now, adjust an input, then save again. Each snapshot appears here with a side-by-side comparison of ending balance, deposits and growth.</div>
+    </div>
+
     <div class="scenarioBar" id="scenarioBar"></div>
     <div id="comparisonWrap" style="display:none;">
       <table id="comparisonTable" class="comparisonTable"></table>
     </div>
-    <div class="chainRow">
-      <label class="toggle"><input id="chainScenariosToggle" type="checkbox"> Chain as Life Phases</label>
-      <span class="mutedSmall" id="chainHint">Saved scenarios become sequential phases.</span>
+
+    <div class="chainRow" id="chainRow">
+      <label class="toggle"><input id="chainScenariosToggle" type="checkbox"> Run scenarios back to back</label>
+      <span class="mutedSmall" id="chainHint">Save at least two scenarios to chain them.</span>
     </div>
+    <div class="chainNotice" id="chainNotice" hidden></div>
   </section>
 </div>
 
@@ -899,6 +1324,13 @@
     { hex: "#a78bfa", rgba: "rgba(167,139,250,0.9)" }
   ];
   const MAX_SCENARIOS = 20;
+  // Monte Carlo sizing: total simulated months per run, and the bounds that budget
+  // is allowed to produce. 2500 trials over a 30-year horizon.
+  const MC_STEP_BUDGET = 900000;
+  const MC_MIN_RUNS = 500;
+  const MC_MAX_RUNS = 5000;
+  const MC_SEED = 13579;
+  const MC_INPUT_DEBOUNCE_MS = 140;
 
   const appState = {
     ui: {
@@ -927,8 +1359,10 @@
       delayEnabled: false,
       delayYears: 5,
       mcEnabled: false,
-      rateLow: 4,
-      rateHigh: 9,
+      // 10th/90th percentile annual returns. Around a 7% mean these imply ~16%
+      // annual volatility, in line with a diversified equity portfolio.
+      rateLow: -13.5,
+      rateHigh: 27.5,
       logScale: false
     },
     milestonesEnabled: false,
@@ -1277,6 +1711,36 @@
       if ($("saveScenario")) $("saveScenario").disabled = false;
     }
 
+    // Chaining takes over the horizon and switches three other controls off. That is
+    // a lot to infer from a greyed-out field, so it is stated outright.
+    const scenarioCount = appState.scenarios.length;
+    const chainToggle = $("chainScenariosToggle");
+    if (chainToggle) chainToggle.disabled = (scenarioCount < 2) && !appState.chainMode;
+
+    const chainHintEl = $("chainHint");
+    if (chainHintEl) {
+      chainHintEl.textContent = scenarioCount < 2
+        ? "Save at least two scenarios to chain them."
+        : `${scenarioCount} scenarios would run in order.`;
+    }
+
+    const chainNotice = $("chainNotice");
+    if (chainNotice) {
+      chainNotice.hidden = !chainActive;
+      if (chainActive) {
+        chainNotice.textContent = `Each phase picks up from the previous ending balance, so the phases set the time horizon (${totalYearsFromScenarios()} years). Saving new scenarios, market swings and solve-for-contribution are paused until you turn this off.`;
+      }
+    }
+
+    if (!chainActive) {
+      const saveBtn = $("saveScenario");
+      if (saveBtn) {
+        const atCap = scenarioCount >= MAX_SCENARIOS;
+        saveBtn.disabled = atCap;
+        saveBtn.title = atCap ? `Limit of ${MAX_SCENARIOS} scenarios reached` : "";
+      }
+    }
+
     const taxHint = $("taxHint");
     if (taxHint) {
       taxHint.textContent = ui.taxEnabled ? `Applying ${ui.taxRate}% tax drag on gains.` : "";
@@ -1284,11 +1748,14 @@
     const delayHint = $("delayHint");
     if (delayHint) {
       const dy = ui.delayYears;
-      delayHint.textContent = ui.delayEnabled ? `Start ${dy} ${dy === 1 ? "year" : "years"} later.` : "";
+      delayHint.textContent = ui.delayEnabled
+        ? `Compared against starting ${dy} ${dy === 1 ? "year" : "years"} later.`
+        : "Compare against starting later.";
     }
     const goalHint = $("goalHint");
     if (goalHint) {
       goalHint.textContent = ui.goalSeekOn ? "Contribution is solved to meet the target." : "Solve the required contribution to hit a target.";
+      goalHint.style.color = "";
     }
 
     const startAge = num(ui.startAge, null);
@@ -1304,9 +1771,9 @@
     }
     const retireHint = $("retireHint");
     if (retireHint) {
-      if (!ui.retireEnabled) retireHint.textContent = "";
-      else if (useAgeTimeline) retireHint.textContent = `Derived retirement: Year ${ui.retireAtYear}.`;
-      else retireHint.textContent = "Tip: use ages to auto-calculate retirement year.";
+      if (!ui.retireEnabled) retireHint.textContent = "Stop contributing and start withdrawing at a chosen year.";
+      else if (useAgeTimeline) retireHint.textContent = `Retiring in Year ${ui.retireAtYear}, from the ages above.`;
+      else retireHint.textContent = "Tip: fill in both ages to work out the retirement year for you.";
     }
 
     const disableWhenSimple = [
@@ -1322,6 +1789,23 @@
 
     const msToggle = $("milestonesToggle");
     if (msToggle) msToggle.checked = appState.milestonesEnabled;
+
+    updateRefineBadges();
+  }
+
+  // Each refinement group reports how many of its options are live, so a collapsed
+  // section still tells you whether it is affecting the projection.
+  function updateRefineBadges() {
+    document.querySelectorAll(".refineGroup").forEach(group => {
+      const badge = group.querySelector(".activeCount");
+      if (!badge) return;
+      const switches = group.querySelectorAll("input[data-feature]:checked").length;
+      const numbers = Array.from(group.querySelectorAll("input[data-feature-num]"))
+        .filter(el => Math.abs(num(el.value, 0)) > 0).length;
+      const total = switches + numbers;
+      badge.textContent = total > 0 ? `${total} on` : "";
+      badge.hidden = total === 0;
+    });
   }
 
   function getActiveYears() {
@@ -1470,25 +1954,35 @@
     appState.scenarios.push(scenario);
     renderScenarios();
     renderComparisonTable();
+    // Scenario count drives the chain hint and the save cap, so refresh them here
+    // rather than waiting for the next recalculation.
+    updateUIState();
   }
 
   function renderScenarios() {
     const bar = $("scenarioBar");
     const compWrap = $("comparisonWrap");
+    const empty = $("scenarioEmpty");
     if (!bar) return;
     bar.innerHTML = "";
     if (!appState.scenarios.length) {
       if (compWrap) compWrap.style.display = "none";
+      if (empty) empty.hidden = false;
       return;
     }
+    if (empty) empty.hidden = true;
     appState.scenarios.forEach(s => {
       const chip = document.createElement("div");
-      chip.className = "scenarioChip";
-      chip.style.opacity = (appState.activeScenarioId === s.id) ? "1" : "0.7";
+      const isActive = appState.activeScenarioId === s.id;
+      chip.className = "scenarioChip" + (isActive ? " isActive" : "");
+      chip.setAttribute("role", "button");
+      chip.setAttribute("tabindex", "0");
+      chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+      chip.title = isActive ? `${s.name} (loaded)` : `Load ${s.name}`;
       chip.innerHTML = `
-        <div class="dot" style="background:${s.color.hex}"></div>
+        <div class="dot" style="background:${normalizeHexColor(s.color?.hex, "#60a5fa")}"></div>
         <span>${escapeHtml(s.name)}</span>
-        <span class="close" data-id="${s.id}">&times;</span>
+        <span class="close" data-id="${s.id}" role="button" tabindex="0" aria-label="Remove ${escapeHtml(s.name)}" title="Remove">&times;</span>
       `;
       chip.addEventListener("click", (e) => {
         const isClose = e.target?.classList?.contains("close");
@@ -1531,8 +2025,21 @@
         calculate();
         renderScenarios();
       });
+      // The chip advertises role="button", so it has to answer the keyboard too.
+      chip.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        if (e.target?.classList?.contains("close")) return;
+        e.preventDefault();
+        chip.click();
+      });
       const close = chip.querySelector(".close");
       if (close) {
+        close.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          e.stopPropagation();
+          close.click();
+        });
         close.addEventListener("click", (e) => {
           e.stopPropagation();
           appState.scenarios = appState.scenarios.filter(x => x.id !== s.id);
@@ -1556,9 +2063,14 @@
       table.innerHTML = "";
       return;
     }
+    // Real vs nominal stays a global view toggle so every row shares one unit,
+    // but the inflation rate itself is a saved assumption of each scenario.
+    const showReal = appState.ui.realMode;
     const rows = appState.scenarios.map(s => {
       const inp = s.inputs || {};
       const years = getScenarioYears(inp);
+      const inflPct = num(inp.inflationRate, appState.ui.inflationRate) / 100;
+      const toDisplay = (v) => showReal ? discountValue(v, years, inflPct) : v;
       const msRun = normalizeMilestonesFrom(years, Array.isArray(inp.milestones) ? inp.milestones : []);
       const out = computeDeterministic({
         principal: num(inp.principal, 0),
@@ -1573,40 +2085,40 @@
         retireEnabled: !!inp.retireEnabled,
         retireAtYear: num(inp.retireAtYear, 0),
         withdrawMonthly: num(inp.withdrawMonthly, 0),
-        inflationPct: appState.ui.inflationRate / 100,
+        inflationPct: inflPct,
         withdrawIndexToInflation: typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true,
         contribStartMonth: 1
       });
       const deposits = sumContribs(out.scheduleMonthly);
       const invested = num(inp.principal, 0) + deposits;
-      const endingNominal = out.ending;
-      const endingDisplay = appState.ui.realMode ? discountValue(endingNominal, years, appState.ui.inflationRate / 100) : endingNominal;
-      const interestDisplay = endingDisplay - (appState.ui.realMode ? discountValue(invested, years, appState.ui.inflationRate / 100) : invested);
+      const endingDisplay = toDisplay(out.ending);
+      const investedDisplay = toDisplay(invested);
       return {
         name: s.name,
         color: s.color?.hex || "#60a5fa",
         years,
         ending: endingDisplay,
-        invested: appState.ui.realMode ? discountValue(invested, years, appState.ui.inflationRate / 100) : invested,
-        deposits: appState.ui.realMode ? discountValue(deposits, years, appState.ui.inflationRate / 100) : deposits,
-        interest: interestDisplay
+        invested: investedDisplay,
+        deposits: toDisplay(deposits),
+        interest: endingDisplay - investedDisplay
       };
     });
 
+    const units = showReal ? " (today's $)" : "";
     const header = `
       <thead>
         <tr>
           <th>Scenario</th>
-          <th>Ending</th>
-          <th>Invested</th>
-          <th>Deposits</th>
-          <th>Gains</th>
+          <th>Ending${units}</th>
+          <th>Invested${units}</th>
+          <th>Deposits${units}</th>
+          <th>Gains${units}</th>
         </tr>
       </thead>
     `;
     const body = rows.map(r => `
       <tr>
-        <td><span style="color:${r.color}">?</span> ${escapeHtml(r.name)}</td>
+        <td><span style="color:${normalizeHexColor(r.color, "#60a5fa")}">&#9679;</span> ${escapeHtml(r.name)}</td>
         <td>${fmt0.format(r.ending)}</td>
         <td>${fmt0.format(r.invested)}</td>
         <td>${fmt0.format(r.deposits)}</td>
@@ -2019,7 +2531,7 @@
       principal, contribAmt, contribFreq, years, aprPercent,
       contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
       retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation,
-      contribStartMonth
+      contribStartMonth, timelineOffsetYears
     } = params;
 
     principal = clamp(principal, 0);
@@ -2035,6 +2547,9 @@
     inflationPct = Math.max(0, num(inflationPct, 0));
     withdrawIndexToInflation = !!withdrawIndexToInflation;
     const startContribMonth = Number.isFinite(contribStartMonth) ? Math.max(1, Math.round(contribStartMonth)) : 1;
+    // How many years into the wider timeline this run begins. Only affects how far
+    // inflation has already compounded when withdrawals are indexed.
+    const timelineOffset = Math.max(0, Math.round(num(timelineOffsetYears, 0)));
 
     const monthsTotal = Math.max(0, Math.round(years * 12));
     const monthlyRate = (aprPercent / 100) / 12;
@@ -2156,7 +2671,7 @@
         totalContrib += contribution;
       } else if (inRetirement) {
         const inflFactor = (withdrawIndexToInflation && inflationPct > 0)
-          ? Math.pow(1 + inflationPct, yearIndex)
+          ? Math.pow(1 + inflationPct, yearIndex + timelineOffset)
           : 1;
         const target = withdrawMonthly * inflFactor;
         const pre = balance;
@@ -2297,9 +2812,11 @@
         retireEnabled: !!inp.retireEnabled,
         retireAtYear: num(inp.retireAtYear, 0),
         withdrawMonthly: num(inp.withdrawMonthly, 0),
-        inflationPct: appState.ui.inflationRate / 100,
+        // Inflation is a per-phase assumption, not the current view setting.
+        inflationPct: num(inp.inflationRate, appState.ui.inflationRate) / 100,
         withdrawIndexToInflation: typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true,
-        contribStartMonth: 1
+        contribStartMonth: 1,
+        timelineOffsetYears: Math.round(monthOffset / 12)
       });
 
       (out.seriesMonthly || []).forEach(m => combinedMonthly.push({ month: m.month + monthOffset, balance: m.balance }));
@@ -2479,19 +2996,62 @@
       return ((t ^ t >>> 14) >>> 0) / 4294967296;
     };
   }
-  function randNormal(rng) {
-    let u = 0, v = 0;
-    while (u === 0) u = rng();
-    while (v === 0) v = rng();
-    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  // Box-Muller produces two independent normals per pair of uniforms; keeping the
+  // second one halves the cost, which matters at a few thousand trials.
+  function makeNormal(rng) {
+    let spare = null;
+    return function nextNormal() {
+      if (spare !== null) {
+        const s = spare;
+        spare = null;
+        return s;
+      }
+      let u = 0, v = 0;
+      while (u === 0) u = rng();
+      while (v === 0) v = rng();
+      const radius = Math.sqrt(-2.0 * Math.log(u));
+      const theta = 2.0 * Math.PI * v;
+      spare = radius * Math.sin(theta);
+      return radius * Math.cos(theta);
+    };
   }
 
-  function simulateTrial(params, rng) {
+  // Turn the APR + Low/High band into lognormal (geometric Brownian) monthly params.
+  //
+  // Low/High are read as the 10th/90th percentile annual return, so the implied
+  // annual sd is (high-low)/(2*z90). The distribution is then moment-matched to a
+  // lognormal, which keeps returns strictly above -100% (no clamping) and puts the
+  // volatility drag between the mean and the median where it belongs.
+  //
+  // The mean is matched to the deterministic engine's effective annual rate, so a
+  // zero-width band reproduces the deterministic projection exactly and, with a
+  // band, the mean of the trials still lands on the deterministic line.
+  const Z90 = 1.2815515655446004;
+  function lognormalMonthlyParams(aprPercent, rateLow, rateHigh) {
+    const apr = num(aprPercent, 0) / 100;
+    const meanGross = Math.pow(1 + apr / 12, 12);
+    if (!(meanGross > 0)) return { muLogM: 0, sigmaLogM: 0, sigmaAnnual: 0, meanAnnual: 0 };
+    const lowA = num(rateLow, num(aprPercent, 0)) / 100;
+    const highA = num(rateHigh, num(aprPercent, 0)) / 100;
+    const sigmaAnnual = (highA > lowA) ? (highA - lowA) / (2 * Z90) : 0;
+    const sigmaLog = (sigmaAnnual > 0)
+      ? Math.sqrt(Math.log(1 + (sigmaAnnual * sigmaAnnual) / (meanGross * meanGross)))
+      : 0;
+    const muLog = Math.log(meanGross) - (sigmaLog * sigmaLog) / 2;
+    return {
+      muLogM: muLog / 12,
+      sigmaLogM: sigmaLog / Math.sqrt(12),
+      sigmaAnnual,
+      meanAnnual: meanGross - 1
+    };
+  }
+
+  function simulateTrial(params, nextNormal) {
     let {
       principal, contribAmt, contribFreq, years, aprPercent, rateLow, rateHigh,
       contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
       retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation,
-      contribStartMonth
+      contribStartMonth, timelineOffsetYears
     } = params;
 
     principal = clamp(principal, 0);
@@ -2506,10 +3066,13 @@
     inflationPct = Math.max(0, num(inflationPct, 0));
     withdrawIndexToInflation = !!withdrawIndexToInflation;
     const startContribMonth = Number.isFinite(contribStartMonth) ? Math.max(1, Math.round(contribStartMonth)) : 1;
+    const timelineOffset = Math.max(0, Math.round(num(timelineOffsetYears, 0)));
 
     const monthsTotal = Math.max(0, Math.round(years * 12));
     const annualStepFactor = 1 + contribIncreasePct;
     const monthlyCap = (maxMonthlyContrib > 0) ? maxMonthlyContrib : Infinity;
+
+    const { muLogM, sigmaLogM } = lognormalMonthlyParams(aprPercent, rateLow, rateHigh);
 
     const msArr = Array.isArray(milestones) ? milestones : [];
     const msByMonth = {};
@@ -2521,17 +3084,8 @@
 
     let balance = principal;
     const seriesYearly = [];
-    seriesYearly[0] = balance;
-
     let currentContrib = contribAmt;
-
-    const mean = (num(aprPercent, 0)) / 100;
-    const low = (num(rateLow, aprPercent)) / 100;
-    const high = (num(rateHigh, aprPercent)) / 100;
-    let sigma = 0;
-    if (high > low) sigma = (high - low) / (2 * 1.28155);
-
-    let monthIndex = 0;
+    let depletionMonth = null;
 
     const applyEvents = (absMonth) => {
       const items = msByMonth[absMonth] || [];
@@ -2540,48 +3094,46 @@
       balance = Math.max(0, balance + delta);
     };
 
+    // Month-0 events land before the opening balance is recorded, matching
+    // computeDeterministic (which the old loop did not).
     applyEvents(0);
+    seriesYearly[0] = balance;
 
-    for (let y = 0; y < Math.ceil(years); y++) {
-      const annual = Math.max(-0.95, mean + sigma * randNormal(rng));
-      const monthlyRate = Math.pow(1 + annual, 1 / 12) - 1;
+    for (let m = 1; m <= monthsTotal; m++) {
+      if (m > 1 && ((m - 1) % 12 === 0)) {
+        currentContrib *= annualStepFactor;
+      }
 
-      for (let m = 1; m <= 12; m++) {
-        monthIndex++;
-        if (monthIndex > monthsTotal) break;
+      const yearIndex = Math.floor((m - 1) / 12);
+      const inRetirement = retireEnabled && (withdrawMonthly > 0) && (yearIndex >= retireAtYear);
 
-        if (monthIndex > 1 && ((monthIndex - 1) % 12 === 0)) {
-          currentContrib *= annualStepFactor;
-        }
-
-        const yearIndex = Math.floor((monthIndex - 1) / 12);
-        const inRetirement = retireEnabled && (withdrawMonthly > 0) && (yearIndex >= retireAtYear);
-
-        if (!inRetirement && monthIndex >= startContribMonth) {
-          if (contribFreq === "annual") {
-            if (monthIndex % 12 === 0) {
-              const cap = Math.min(currentContrib, monthlyCap);
-              balance += cap * 12;
-            }
-          } else {
-            balance += Math.min(currentContrib, monthlyCap);
+      if (!inRetirement && m >= startContribMonth) {
+        if (contribFreq === "annual") {
+          if (m % 12 === 0) {
+            balance += Math.min(currentContrib, monthlyCap) * 12;
           }
-        } else if (inRetirement) {
-          const inflFactor = (withdrawIndexToInflation && inflationPct > 0)
-            ? Math.pow(1 + inflationPct, yearIndex)
-            : 1;
-          balance = Math.max(0, balance - withdrawMonthly * inflFactor);
+        } else {
+          balance += Math.min(currentContrib, monthlyCap);
         }
+      } else if (inRetirement) {
+        const inflFactor = (withdrawIndexToInflation && inflationPct > 0)
+          ? Math.pow(1 + inflationPct, yearIndex + timelineOffset)
+          : 1;
+        balance = Math.max(0, balance - withdrawMonthly * inflFactor);
+        if (depletionMonth === null && balance <= 0) depletionMonth = m;
+      }
 
-        applyEvents(monthIndex);
+      applyEvents(m);
 
-        let interest = balance * monthlyRate;
-        if (taxPct > 0) interest = interest * (1 - taxPct);
-        balance += interest;
+      // A fresh return every month, so a bad stretch early in retirement can sink a
+      // trial that the same returns in a different order would not. Drawing once per
+      // year and reusing it for 12 months hid exactly that risk.
+      let interest = balance * (Math.exp(muLogM + sigmaLogM * nextNormal()) - 1);
+      if (taxPct > 0) interest = interest * (1 - taxPct);
+      balance = Math.max(0, balance + interest);
 
-        if (monthIndex % 12 === 0) {
-          seriesYearly[Math.round(monthIndex / 12)] = balance;
-        }
+      if (m % 12 === 0) {
+        seriesYearly[Math.round(m / 12)] = balance;
       }
     }
 
@@ -2592,23 +3144,42 @@
       }
     }
 
-    return seriesYearly;
+    return { seriesYearly, depletionMonth };
   }
 
-  function percentile(arr, p) {
-    if (!arr.length) return 0;
-    const idx = Math.max(0, Math.min(arr.length - 1, Math.floor(p * (arr.length - 1))));
-    return arr[idx];
+  // Linear interpolation between order statistics. The old nearest-rank version
+  // quantised every percentile onto an actual trial, which made the band edges jump
+  // as trials were added or removed.
+  function percentile(sorted, p) {
+    const n = sorted.length;
+    if (!n) return 0;
+    if (n === 1) return sorted[0];
+    const pos = clamp(p, 0, 1) * (n - 1);
+    const lo = Math.floor(pos);
+    const hi = Math.ceil(pos);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
   }
 
   function runMonteCarlo(params) {
     const yearsInt = Math.max(0, Math.round(params.years || 0));
-    const runs = yearsInt > 60 ? 220 : 300;
+    const monthsTotal = Math.max(1, Math.round((params.years || 0) * 12));
+    // Trials are scaled to a fixed step budget: enough samples to steady the tails,
+    // still fast enough to rerun on every keystroke.
+    const runs = Math.max(MC_MIN_RUNS, Math.min(MC_MAX_RUNS, Math.round(MC_STEP_BUDGET / monthsTotal)));
     const buckets = Array.from({ length: yearsInt + 1 }, () => []);
-    const rng = mulberry32(13579);
+    const rng = mulberry32(MC_SEED);
+    const nextNormal = makeNormal(rng);
+
+    let ruinCount = 0;
+    let endingSum = 0;
 
     for (let i = 0; i < runs; i++) {
-      const series = simulateTrial(params, rng);
+      const trial = simulateTrial(params, nextNormal);
+      const series = trial.seriesYearly;
+      if (trial.depletionMonth !== null) ruinCount++;
+      const ending = series[yearsInt] ?? series[series.length - 1] ?? 0;
+      endingSum += ending;
       for (let y = 0; y <= yearsInt; y++) {
         buckets[y].push(series[y] ?? series[series.length - 1] ?? 0);
       }
@@ -2623,10 +3194,15 @@
       p50[y] = percentile(arr, 0.5);
       p90[y] = percentile(arr, 0.9);
     }
-    return { p10, p50, p90 };
+
+    return {
+      p10, p50, p90, runs,
+      ruinRate: runs > 0 ? (ruinCount / runs) : 0,
+      meanEnding: runs > 0 ? (endingSum / runs) : 0
+    };
   }
 
-  function buildChartData({ baseOut, lowOut, highOut, mcData, delaySeries, milestones, milestoneInfo, years, mode, phaseMarkers, phaseBands }) {
+  function buildChartData({ baseOut, mcData, delaySeries, milestones, milestoneInfo, years, mode, phaseMarkers, phaseBands }) {
     const ui = appState.ui;
     const infl = ui.inflationRate / 100;
     const isMC = mode === "mc";
@@ -2848,8 +3424,31 @@
     renderChartLegend([]);
   }
 
+  // A Monte Carlo pass is ~2500 trials x 360 months, which is too much to redo on
+  // every keystroke. Typing coalesces into one run once input stops; everything else
+  // (toggles, selects, drags) stays immediate because it cannot repeat-fire.
+  let calcTimer = null;
+  function scheduleCalculate(delayMs = 0) {
+    if (calcTimer !== null) {
+      clearTimeout(calcTimer);
+      calcTimer = null;
+    }
+    if (!(delayMs > 0)) {
+      calculate();
+      return;
+    }
+    calcTimer = setTimeout(() => {
+      calcTimer = null;
+      calculate();
+    }, delayMs);
+  }
+
   function calculate() {
     if (suppressEvents) return;
+    if (calcTimer !== null) {
+      clearTimeout(calcTimer);
+      calcTimer = null;
+    }
     readUIIntoState();
     updateUIState();
 
@@ -2889,7 +3488,23 @@
         ui.contrib = solved;
       }
       years = targetYears;
+      // Goal seek always solves in whole years. Force the horizon unit to match,
+      // otherwise the year count written below is re-read as a month count.
+      ui.horizonUnit = "years";
+      ui.yearsRaw = years;
+      if ($("horizonUnit")) $("horizonUnit").value = "years";
       if ($("years")) $("years").value = years;
+
+      const goalHint = $("goalHint");
+      if (goalHint) {
+        if (solved === null) {
+          goalHint.textContent = "Target unreachable within these limits. Contribution left unchanged.";
+          goalHint.style.color = "var(--danger)";
+        } else {
+          goalHint.textContent = "Contribution is solved to meet the target.";
+          goalHint.style.color = "";
+        }
+      }
     }
 
     const msRun = appState.milestonesEnabled ? normalizeMilestonesFrom(years, getMilestoneRunList()) : [];
@@ -2933,6 +3548,17 @@
       const delayYears = Math.min(Math.max(1, Math.round(ui.delayYears)), Math.floor(years));
       const delayedYears = Math.max(0, years - delayYears);
       if (delayedYears > 0) {
+        // msRun is positioned on the full timeline. The delayed run is a shorter
+        // timeline that begins delayYears later, so shift each milestone into that
+        // local frame and drop the ones that fall before the delayed start -- passing
+        // msRun unchanged would clamp every late event onto the final month.
+        const delayOffsetMonths = delayYears * 12;
+        const msDelayed = msRun.reduce((acc, ms) => {
+          const localAbs = Math.round(num(ms.absMonth, 0)) - delayOffsetMonths;
+          if (localAbs < 0) return acc;
+          acc.push({ ...ms, ...partsFromAbsMonth(localAbs), absMonth: localAbs });
+          return acc;
+        }, []);
         const delayedOut = computeDeterministic({
           principal: ui.principal,
           contribAmt,
@@ -2941,14 +3567,17 @@
           aprPercent: ui.rateBase,
           contribIncreasePct: ui.contribIncrease / 100,
           maxMonthlyContrib: ui.maxContrib,
-          milestones: msRun,
+          milestones: msDelayed,
           taxPct,
           retireEnabled: ui.retireEnabled,
-          retireAtYear: ui.retireAtYear,
+          // Retirement is fixed on the calendar, so waiting to start investing does
+          // not push it back -- it arrives delayYears sooner in this shorter run.
+          retireAtYear: Math.max(0, ui.retireAtYear - delayYears),
           withdrawMonthly: ui.withdrawMonthly,
           inflationPct: ui.inflationRate / 100,
           withdrawIndexToInflation: ui.withdrawInflationToggle,
-          contribStartMonth: 1
+          contribStartMonth: 1,
+          timelineOffsetYears: delayYears
         });
         const delayedArr = new Array(Math.round(years) + 1).fill(0);
         delayedArr[delayYears] = ui.principal;
@@ -2961,8 +3590,6 @@
 
     const mcEnabled = (!ui.simpleMode && ui.mcEnabled && !chainActive && !ui.goalSeekOn && ui.horizonUnit !== "months");
     let mcData = null;
-    let lowOut = null;
-    let highOut = null;
 
     if (mcEnabled) {
       mcData = runMonteCarlo({
@@ -2973,40 +3600,6 @@
         aprPercent: ui.rateBase,
         rateLow: ui.rateLow,
         rateHigh: ui.rateHigh,
-        contribIncreasePct: ui.contribIncrease / 100,
-        maxMonthlyContrib: ui.maxContrib,
-        milestones: msRun,
-        taxPct,
-        retireEnabled: ui.retireEnabled,
-        retireAtYear: ui.retireAtYear,
-        withdrawMonthly: ui.withdrawMonthly,
-        inflationPct: ui.inflationRate / 100,
-        withdrawIndexToInflation: ui.withdrawInflationToggle,
-        contribStartMonth: 1
-      });
-      lowOut = computeDeterministic({
-        principal: ui.principal,
-        contribAmt,
-        contribFreq: ui.contribFreq,
-        years,
-        aprPercent: ui.rateLow,
-        contribIncreasePct: ui.contribIncrease / 100,
-        maxMonthlyContrib: ui.maxContrib,
-        milestones: msRun,
-        taxPct,
-        retireEnabled: ui.retireEnabled,
-        retireAtYear: ui.retireAtYear,
-        withdrawMonthly: ui.withdrawMonthly,
-        inflationPct: ui.inflationRate / 100,
-        withdrawIndexToInflation: ui.withdrawInflationToggle,
-        contribStartMonth: 1
-      });
-      highOut = computeDeterministic({
-        principal: ui.principal,
-        contribAmt,
-        contribFreq: ui.contribFreq,
-        years,
-        aprPercent: ui.rateHigh,
         contribIncreasePct: ui.contribIncrease / 100,
         maxMonthlyContrib: ui.maxContrib,
         milestones: msRun,
@@ -3085,7 +3678,11 @@
     }
 
     const kOpp = $("kpiOppCost");
-    if (kOpp) kOpp.textContent = (opportunityCostDisplay === null || !Number.isFinite(opportunityCostDisplay)) ? "-" : fmt0.format(opportunityCostDisplay);
+    const kOppTile = $("kpiOppCostTile");
+    const hasOppCost = (opportunityCostDisplay !== null && Number.isFinite(opportunityCostDisplay));
+    // A tile showing "-" is just noise; it only means anything with Cost of Waiting on.
+    if (kOppTile) kOppTile.style.display = hasOppCost ? "flex" : "none";
+    if (kOpp) kOpp.textContent = hasOppCost ? fmt0.format(opportunityCostDisplay) : "-";
 
     const kEff = $("kpiEfficiency");
     const kEffTile = $("kpiEfficiencyTile");
@@ -3108,7 +3705,13 @@
       if (ui.retireEnabled && baseOut.depletionYear !== undefined) {
         kDeplTile.style.display = "flex";
         if (kDepl) {
-          if (baseOut.depletionYear === null) {
+          if (mcEnabled && mcData && Number.isFinite(mcData.ruinRate)) {
+            // A single deterministic path either survives or does not; across trials
+            // the honest answer is a probability.
+            const survival = (1 - mcData.ruinRate) * 100;
+            kDepl.textContent = `${survival.toFixed(1)}% of ${mcData.runs} trials survive`;
+            kDepl.style.color = survival >= 90 ? "#22c55e" : (survival >= 75 ? "#b45309" : "#ef4444");
+          } else if (baseOut.depletionYear === null) {
             kDepl.textContent = `Sustainable (through Year ${Math.round(years)})`;
             kDepl.style.color = "#22c55e";
           } else {
@@ -3128,6 +3731,39 @@
         pill.textContent = `${Math.round(years)} Year Outcome (P50) | P10-P90: ${fmt0.format(discountValue(mcData.p10[mcData.p10.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))} to ${fmt0.format(discountValue(mcData.p90[mcData.p90.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))}${lens}`;
       } else {
         pill.textContent = `${Math.round(years)} Year Projection @ ${ui.rateBase}%${lens}`;
+      }
+    }
+
+    // The chart plots something different in each mode, so it says which.
+    const chartSubtitle = $("chartSubtitle");
+    if (chartSubtitle) {
+      let what;
+      if (chainActive) {
+        const n = appState.scenarios.length;
+        what = `${n} chained phase${n === 1 ? "" : "s"} over ${Math.round(years)} years`;
+      } else if (mcEnabled && mcData) {
+        what = `Median of ${mcData.runs.toLocaleString()} simulated markets, P10-P90 shaded`;
+      } else {
+        what = `Projected at ${ui.rateBase}% a year`;
+      }
+      chartSubtitle.textContent = what + (ui.realMode ? ", in today's dollars" : "");
+    }
+
+    const chartHint = $("chartHint");
+    if (chartHint) {
+      // Only mention dragging markers when there are markers to drag.
+      chartHint.textContent = msRun.length
+        ? "Drag an event marker to reschedule it. Scroll to zoom, drag to pan."
+        : "Scroll to zoom, drag to pan.";
+    }
+
+    const mcHint = $("mcHint");
+    if (mcHint) {
+      if (mcEnabled && mcData) {
+        const vol = lognormalMonthlyParams(ui.rateBase, ui.rateLow, ui.rateHigh).sigmaAnnual * 100;
+        mcHint.textContent = `${mcData.runs} lognormal trials, monthly steps, ${vol.toFixed(1)}% annual volatility. Low/High are the 10th/90th percentile years.`;
+      } else {
+        mcHint.textContent = "Runs thousands of randomised markets for a P10/P50/P90 range.";
       }
     }
 
@@ -3151,20 +3787,12 @@
       summary.innerHTML = `With ${fmt0.format(ui.principal)} starting and ${fmt0.format(contribAmt)} ${freqLabel} contributions at ${ui.rateBase}% for ${Math.round(years)} years, the model projects <strong>${fmt0.format(endingDisplay)}</strong>.${msText}${delayText}`;
     }
 
-    const milestoneInfo = mcEnabled
-      ? {
-          p10: discountEventInfo(lowOut?.eventInfoYearly || [], ui.realMode ? ui.inflationRate / 100 : 0),
-          p50: discountEventInfo(baseOut.eventInfoYearly || [], ui.realMode ? ui.inflationRate / 100 : 0),
-          p90: discountEventInfo(highOut?.eventInfoYearly || [], ui.realMode ? ui.inflationRate / 100 : 0)
-        }
-      : {
-          base: discountEventInfo(baseOut.eventInfoYearly || [], ui.realMode ? ui.inflationRate / 100 : 0)
-        };
+    const milestoneInfo = {
+      base: discountEventInfo(baseOut.eventInfoYearly || [], ui.realMode ? ui.inflationRate / 100 : 0)
+    };
 
     const chartData = buildChartData({
       baseOut,
-      lowOut,
-      highOut,
       mcData,
       delaySeries: delayedSeries,
       milestones: msRun.map(m => ({ ...m, tYears: (m.absMonth || 0) / 12 })),
@@ -3318,6 +3946,14 @@
       ctx.fillStyle = palette.axis || "#6b7e93";
       ctx.fillText(String(Math.round(tick)), x, H - pad.b + 8);
     }
+
+    // The x tick labels are bare integers; say what they count.
+    ctx.fillStyle = palette.axis || "#6b7e93";
+    ctx.font = "10px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("Years", pad.l + plotW / 2, H - pad.b + 24);
+    ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
 
     ctx.strokeStyle = "#c8d8e8";
     ctx.lineWidth = 1.1;
@@ -3473,6 +4109,10 @@
       return { year, items, totalDelta, icon, label, color, x: xForYear(year) };
     });
 
+    // Mark which groups actually fall inside the visible window. Off-screen groups
+    // still get an extrapolated x, so hit-testing must ignore them or hover and drag
+    // snap to markers that are not drawn.
+    const isVisibleYear = (y) => y >= startYear && y <= startYear + visibleYears;
     appState.chart.milestoneMeta = msGroups.map(g => ({
       year: g.year,
       x: g.x,
@@ -3480,12 +4120,13 @@
       label: g.label,
       items: g.items,
       totalDelta: g.totalDelta,
-      color: g.color
+      color: g.color,
+      visible: isVisibleYear(g.year)
     }));
 
     if (msGroups.length) {
       msGroups.forEach(g => {
-        if (g.year < startYear || g.year > startYear + visibleYears) return;
+        if (!isVisibleYear(g.year)) return;
         ctx.save();
         ctx.setLineDash([5,5]);
         ctx.strokeStyle = palette.markerLine || "rgba(71,85,105,0.34)";
@@ -3514,7 +4155,25 @@
 
     appState.chart.xScale = { padL: pad.l, plotW, startYear, visibleYears, totalYears: yearsInt, padT: pad.t, padB: pad.b, plotH };
     renderChartLegend(data.legendModel || []);
+    updateZoomControls();
     updateTooltip();
+  }
+
+  // Zoom can also change by wheel and drag, so the control reflects state here
+  // rather than only in the button handlers.
+  function updateZoomControls() {
+    const z = num(appState.chart.zoomLevel, 1);
+    const atMin = z <= 1.0001;
+    const atMax = z >= 19.9999;
+    const level = $("zoomReset");
+    if (level) {
+      level.textContent = `${z.toFixed(1)}×`;
+      level.disabled = atMin;
+    }
+    const zo = $("zoomOut");
+    if (zo) zo.disabled = atMin;
+    const zi = $("zoomIn");
+    if (zi) zi.disabled = atMax;
   }
 
   function requestDraw() {
@@ -3538,6 +4197,7 @@
     let best = null;
     let bestDx = Infinity;
     appState.chart.milestoneMeta.forEach(ms => {
+      if (ms.visible === false) return;
       const dx = Math.abs(mx - ms.x);
       if (dx < bestDx) { bestDx = dx; best = ms; }
     });
@@ -3588,18 +4248,13 @@
         const sign = (group.totalDelta || 0) < 0 ? "-" : "+";
         html += `<div style="margin-top:7px; padding-top:6px; border-top:1px solid #e3ecf5;"></div>`;
         html += `<div class="ttRow"><span class="ttKey">${escapeHtml(group.icon)} ${escapeHtml(group.label)}</span><span class="ttVal">${sign}${fmt0.format(Math.abs(group.totalDelta || 0))}</span></div>`;
-        if (isMC && info.p50) {
-          const p50 = info.p50[y];
-          if (p50 && Number.isFinite(p50.pre) && Number.isFinite(p50.post)) {
-            html += row("P50 Event", `${fmt0.format(p50.pre)} -> ${fmt0.format(p50.post)}`);
-          }
-          const p10 = info.p10?.[y];
-          const p90 = info.p90?.[y];
-          if (p10 && Number.isFinite(p10.pre) && Number.isFinite(p10.post)) {
-            html += row("P10 Event", `${fmt0.format(p10.pre)} -> ${fmt0.format(p10.post)}`);
-          }
-          if (p90 && Number.isFinite(p90.pre) && Number.isFinite(p90.post)) {
-            html += row("P90 Event", `${fmt0.format(p90.pre)} -> ${fmt0.format(p90.post)}`);
+        if (isMC) {
+          // The cash delta is exact; the balance it lands on is not. Report the real
+          // simulated median for the year. These rows used to come from deterministic
+          // runs pinned at the band edges -- single-rate-forever paths, not percentiles.
+          const med = Array.isArray(data.p50) ? data.p50[y] : null;
+          if (Number.isFinite(med)) {
+            html += row("P50 Balance (year end)", fmt0.format(med));
           }
         } else if (info.base) {
           const b = info.base[y];
@@ -3841,7 +4496,39 @@
     const expected = 1000 * Math.pow(1 + 0.12 / 12, 12);
     assert("12% APR monthly comp", Math.abs(r3.ending - expected) < 0.5);
 
-    console.log("Selftest results:", results);
+    // --- Monte Carlo invariants ---
+    const mcBase = {
+      principal: 100000, contribAmt: 500, contribFreq: "monthly", years: 30,
+      aprPercent: 7, contribIncreasePct: 0, maxMonthlyContrib: 0, milestones: [],
+      taxPct: 0, retireEnabled: false, retireAtYear: 0, withdrawMonthly: 0,
+      inflationPct: 0, withdrawIndexToInflation: true, contribStartMonth: 1
+    };
+    const det = computeDeterministic(mcBase).ending;
+
+    // With no spread every trial is the deterministic path, so P10/P50/P90 collapse
+    // onto it. This is what catches a mismatch between the two engines' rate maths.
+    const mcFlat = runMonteCarlo({ ...mcBase, rateLow: 7, rateHigh: 7 });
+    const flatEnd = mcFlat.p50[mcFlat.p50.length - 1];
+    assert("MC with zero spread equals deterministic", Math.abs(flatEnd - det) / det < 1e-9);
+    assert("MC zero spread has no band",
+      Math.abs(mcFlat.p90[mcFlat.p90.length - 1] - mcFlat.p10[mcFlat.p10.length - 1]) < 1e-6);
+
+    // Returns are moment-matched, so the average trial must land on the deterministic
+    // line (within sampling error) while the median sits below it -- volatility drag.
+    const mcVol = runMonteCarlo({ ...mcBase, rateLow: 2, rateHigh: 12 });
+    const meanErr = Math.abs(mcVol.meanEnding - det) / det;
+    assert("MC mean tracks deterministic (moment-matched)", meanErr < 0.05);
+    assert("MC median sits below the mean (volatility drag)",
+      mcVol.p50[mcVol.p50.length - 1] < mcVol.meanEnding);
+    assert("MC band is ordered P10 < P50 < P90",
+      mcVol.p10[mcVol.p10.length - 1] < mcVol.p50[mcVol.p50.length - 1] &&
+      mcVol.p50[mcVol.p50.length - 1] < mcVol.p90[mcVol.p90.length - 1]);
+
+    // Lognormal returns cannot wipe out a portfolio that is never withdrawn from.
+    assert("MC never produces a non-positive balance", mcVol.p10[mcVol.p10.length - 1] > 0);
+
+    console.table ? console.table(results) : console.log(results);
+    console.log("Selftest results:", results, "failures:", results.filter(r => !r.pass));
   }
 
   function bindEvents() {
@@ -3853,7 +4540,7 @@
       const el = $(id);
       if (el) el.addEventListener("input", () => {
         if (suppressEvents) return;
-        calculate();
+        scheduleCalculate(appState.ui.mcEnabled ? MC_INPUT_DEBOUNCE_MS : 0);
       });
     });
 
@@ -3886,7 +4573,10 @@
         if (appState.chainMode && appState.activeScenarioId !== null) {
           const s = getActiveScenario();
           if (s) {
-            s.inputs = { ...s.inputs, ...getScenarioInputsFromState(false) };
+            // getScenarioInputsFromState(false) returns milestones:[], so the phase's
+            // own milestones must be carried across the merge or they are wiped.
+            const keptMilestones = Array.isArray(s.inputs?.milestones) ? s.inputs.milestones : [];
+            s.inputs = { ...s.inputs, ...getScenarioInputsFromState(false), milestones: keptMilestones };
           }
         }
         calculate();
@@ -3984,9 +4674,17 @@
     const zoomIn = $("zoomIn");
     const zoomOut = $("zoomOut");
     const zoomReset = $("zoomReset");
-    if (zoomIn) zoomIn.addEventListener("click", () => { appState.chart.zoomLevel = clamp(appState.chart.zoomLevel + 0.25, 1, 20); requestDraw(); });
-    if (zoomOut) zoomOut.addEventListener("click", () => { appState.chart.zoomLevel = clamp(appState.chart.zoomLevel - 0.25, 1, 20); requestDraw(); });
-    if (zoomReset) zoomReset.addEventListener("click", () => { appState.chart.zoomLevel = 1; appState.chart.viewOffset = 0; requestDraw(); });
+    // Redraw is deferred to an animation frame, so the control is refreshed here as
+    // well -- otherwise the level readout trails the click that caused it.
+    const applyZoom = (next, resetOffset) => {
+      appState.chart.zoomLevel = clamp(next, 1, 20);
+      if (resetOffset) appState.chart.viewOffset = 0;
+      updateZoomControls();
+      requestDraw();
+    };
+    if (zoomIn) zoomIn.addEventListener("click", () => applyZoom(appState.chart.zoomLevel + 0.25, false));
+    if (zoomOut) zoomOut.addEventListener("click", () => applyZoom(appState.chart.zoomLevel - 0.25, false));
+    if (zoomReset) zoomReset.addEventListener("click", () => applyZoom(1, true));
 
     const mobileResultsBtn = $("mobileResultsToggle");
     const resultsCard = document.querySelector(".resultsCard");
