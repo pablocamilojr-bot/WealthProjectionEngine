@@ -354,6 +354,20 @@
     color:#8798ac;
     font-size:11px;
   }
+  .headerTools{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  #resetAll{ padding:7px 12px; }
+  /* Reset discards saved scenarios, so it asks once rather than firing on a
+     stray click -- and does it inline instead of with a blocking dialog. */
+  #resetAll.isArmed{
+    background:rgba(220,38,38,0.1);
+    border-color:rgba(220,38,38,0.45);
+    color:#b91c1c;
+  }
   .hint{
     font-size:11.5px;
     color:var(--muted);
@@ -528,6 +542,95 @@
     font-size:12px;
     font-variant-numeric:tabular-nums;
     color:var(--muted);
+  }
+  .exportWrap{ position:relative; }
+  .exportMenu{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0;
+    z-index:30;
+    min-width:212px;
+    padding:6px;
+    border:1px solid rgba(191,208,226,0.95);
+    border-radius:12px;
+    background:rgba(255,255,255,0.97);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 16px 34px rgba(15,23,42,0.16),0 2px 8px rgba(15,23,42,0.09);
+  }
+  .exportMenu[hidden]{ display:none; }
+  .exportItem{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:transparent;
+    border:none;
+    border-radius:8px;
+    box-shadow:none;
+    color:#22405f;
+    font-size:12.5px;
+    font-weight:500;
+    padding:8px 10px;
+  }
+  .exportItem:hover{
+    background:#eaf2ff;
+    color:#12376f;
+    transform:none;
+    box-shadow:none;
+    filter:none;
+  }
+  .exportSep{
+    height:1px;
+    margin:5px 4px;
+    background:var(--border);
+  }
+  .dataTableWrap{
+    margin-top:12px;
+    border:1px solid var(--border);
+    border-radius:14px;
+    background:#ffffff;
+    padding:12px 14px;
+  }
+  .dataTableWrap[hidden]{ display:none; }
+  .dataTableHead{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--label);
+  }
+  .dataTableScroll{
+    max-height:320px;
+    overflow:auto;
+    margin-top:8px;
+  }
+  .dataTableScroll .comparisonTable th{
+    position:sticky;
+    top:0;
+    background:#ffffff;
+    z-index:1;
+  }
+  /* Print: everything except the printable block is removed from the page box,
+     so the chart lands on its own sheet without the app chrome around it. */
+  #printArea{ display:none; }
+  @media print{
+    body{ background:#ffffff; }
+    body > *{ display:none !important; }
+    body > #printArea{ display:block !important; }
+    #printArea{
+      padding:0;
+      color:#0f2238;
+      font-family:var(--body);
+    }
+    #printArea img{ width:100%; height:auto; }
+    #printArea h1{ font-size:18px; margin:0 0 4px; }
+    #printArea .printSub{ font-size:12px; color:#546981; margin-bottom:14px; }
+    #printArea table{ width:100%; border-collapse:collapse; font-size:11px; margin-top:14px; }
+    #printArea th, #printArea td{ border-bottom:1px solid #d8e3ef; padding:5px 6px; text-align:right; }
+    #printArea th:first-child, #printArea td:first-child{ text-align:left; }
+    @page{ margin:14mm; }
   }
   button{
     border:none;
@@ -1023,7 +1126,10 @@
     <section class="card inputsCard">
       <div class="cardHeader">
         <div class="cardTitle">Your plan</div>
-        <label class="toggle"><input id="simpleToggle" type="checkbox"> Simple mode</label>
+        <div class="headerTools">
+          <label class="toggle"><input id="simpleToggle" type="checkbox"> Simple mode</label>
+          <button id="resetAll" type="button" class="secondary" title="Clear saved work and restore defaults">Reset</button>
+        </div>
       </div>
 
       <!-- Four questions, nothing else. Frequency and horizon unit ride along inside
@@ -1266,6 +1372,21 @@
           <button id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
         </div>
         <button id="fullscreenToggle" type="button" class="secondary">Fullscreen</button>
+        <div class="exportWrap">
+          <button id="exportMenuBtn" type="button" class="secondary iconBtn" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu" title="Export and print">&#9776;</button>
+          <div class="exportMenu" id="exportMenu" role="menu" hidden>
+            <button class="exportItem" type="button" role="menuitem" data-export="print">Print chart</button>
+            <div class="exportSep"></div>
+            <button class="exportItem" type="button" role="menuitem" data-export="png">Download PNG image</button>
+            <button class="exportItem" type="button" role="menuitem" data-export="jpeg">Download JPEG image</button>
+            <button class="exportItem" type="button" role="menuitem" data-export="pdf">Download PDF document</button>
+            <button class="exportItem" type="button" role="menuitem" data-export="svg">Download SVG vector image</button>
+            <div class="exportSep"></div>
+            <button class="exportItem" type="button" role="menuitem" data-export="csv">Download CSV</button>
+            <button class="exportItem" type="button" role="menuitem" data-export="xls">Download XLS</button>
+            <button class="exportItem" type="button" role="menuitem" data-export="table">View data table</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="chartWrap" id="chartWrap">
@@ -1273,6 +1394,13 @@
       <div id="chartTooltip" class="chartTooltip" style="display:none;"></div>
     </div>
     <div id="chartLegend" class="chartLegend"></div>
+    <div id="dataTableWrap" class="dataTableWrap" hidden>
+      <div class="dataTableHead">
+        <span id="dataTableCaption">Chart data</span>
+        <button id="dataTableClose" type="button" class="secondary">Hide table</button>
+      </div>
+      <div class="dataTableScroll"><table id="dataTable" class="comparisonTable"></table></div>
+    </div>
     <div class="chartHint" id="chartHint">Scroll to zoom, drag to pan.</div>
   </section>
 
@@ -1559,6 +1687,123 @@
 
   function initStateFromDOM() {
     readUIIntoState();
+  }
+
+  /* ---- Persistence -------------------------------------------------------
+     A reload used to discard everything: inputs back to defaults, saved
+     scenarios gone. State is mirrored to localStorage and restored on boot.
+     Storage is treated as a convenience, never a requirement, so private
+     browsing or a disabled store degrades to the old behaviour rather than
+     throwing. Only the model is persisted -- chart zoom and pan are view
+     state and deliberately start fresh. */
+  const STORAGE_KEY = "compoundInterestCalculator.state";
+  const STORAGE_VERSION = 1;
+  let shippedDefaults = null;
+  let saveTimer = null;
+
+  function persistableState() {
+    return {
+      v: STORAGE_VERSION,
+      ui: { ...appState.ui },
+      milestonesEnabled: !!appState.milestonesEnabled,
+      milestones: Array.isArray(appState.milestones) ? appState.milestones : [],
+      scenarios: Array.isArray(appState.scenarios) ? appState.scenarios : [],
+      activeScenarioId: appState.activeScenarioId ?? null,
+      chainMode: !!appState.chainMode,
+      simpleSnapshot: appState._simpleSnapshot ?? null
+    };
+  }
+
+  function writeState() {
+    saveTimer = null;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistableState()));
+    } catch (err) {
+      /* Quota, private mode, or storage disabled -- nothing to do. */
+    }
+  }
+
+  function saveState() {
+    if (saveTimer !== null) clearTimeout(saveTimer);
+    saveTimer = setTimeout(writeState, 300);
+  }
+
+  function clearStoredState() {
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+    try { window.localStorage.removeItem(STORAGE_KEY); } catch (err) { /* ignore */ }
+  }
+
+  function isPlainObject(v) {
+    return !!v && typeof v === "object" && !Array.isArray(v);
+  }
+
+  function restoreState() {
+    let raw = null;
+    try { raw = window.localStorage.getItem(STORAGE_KEY); } catch (err) { return false; }
+    if (!raw) return false;
+
+    let saved = null;
+    try { saved = JSON.parse(raw); } catch (err) { clearStoredState(); return false; }
+    // A stored blob from a different schema is discarded rather than half-applied.
+    if (!isPlainObject(saved) || saved.v !== STORAGE_VERSION || !isPlainObject(saved.ui)) {
+      clearStoredState();
+      return false;
+    }
+
+    // Copy only keys the current build already knows about, and only when the type
+    // matches, so a stale or hand-edited entry cannot poison the model.
+    Object.keys(appState.ui).forEach(key => {
+      const val = saved.ui[key];
+      if (val === undefined) return;
+      if (typeof val === typeof appState.ui[key]) appState.ui[key] = val;
+    });
+
+    if (Array.isArray(saved.milestones)) {
+      appState.milestones = saved.milestones.filter(m => isPlainObject(m) && m.id);
+    }
+    appState.milestonesEnabled = !!saved.milestonesEnabled;
+
+    if (Array.isArray(saved.scenarios)) {
+      appState.scenarios = saved.scenarios
+        .filter(s => isPlainObject(s) && s.id && isPlainObject(s.inputs))
+        .slice(0, MAX_SCENARIOS)
+        .map((s, idx) => ({
+          ...s,
+          name: String(s.name || `Scenario ${idx + 1}`),
+          color: isPlainObject(s.color) && s.color.hex
+            ? s.color
+            : SCENARIO_COLORS[idx % SCENARIO_COLORS.length]
+        }));
+    }
+
+    const activeStillExists = appState.scenarios.some(s => s.id === saved.activeScenarioId);
+    appState.activeScenarioId = activeStillExists ? saved.activeScenarioId : null;
+    appState.chainMode = !!saved.chainMode && appState.scenarios.length > 0;
+    appState._simpleSnapshot = isPlainObject(saved.simpleSnapshot) ? saved.simpleSnapshot : null;
+    return true;
+  }
+
+  function resetToDefaults() {
+    clearStoredState();
+    if (shippedDefaults) {
+      const d = deepCopy(shippedDefaults);
+      appState.ui = d.ui;
+      appState._simpleSnapshot = null;
+    }
+    appState.milestones = [];
+    appState.milestonesEnabled = false;
+    appState.scenarios = [];
+    appState.activeScenarioId = null;
+    appState.chainMode = false;
+
+    suppressEvents = true;
+    applyStateToUI();
+    suppressEvents = false;
+    updateUIState();
+    renderMilestones();
+    renderScenarios();
+    renderComparisonTable();
+    calculate();
   }
 
   function readUIIntoState() {
@@ -1957,6 +2202,8 @@
     // Scenario count drives the chain hint and the save cap, so refresh them here
     // rather than waiting for the next recalculation.
     updateUIState();
+    // Saving a scenario does not recalculate, so it has to persist for itself.
+    saveState();
   }
 
   function renderScenarios() {
@@ -2526,55 +2773,57 @@
     return out;
   }
 
-  function computeDeterministic(params) {
-    let {
-      principal, contribAmt, contribFreq, years, aprPercent,
-      contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
-      retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation,
-      contribStartMonth, timelineOffsetYears
-    } = params;
+  /* ---- Shared simulation core --------------------------------------------
+     The deterministic projection and every Monte Carlo trial move money in the
+     same order each month -- contribution or withdrawal, then one-off events,
+     then growth -- and differ only in where the monthly rate comes from and how
+     much bookkeeping they keep. That loop used to exist twice, which is how the
+     two engines drifted apart (they disagreed on whether an event past the
+     horizon was clamped in or dropped, and on the opening balance when an event
+     landed at month zero). It now lives here once. */
 
-    principal = clamp(principal, 0);
-    contribAmt = clamp(contribAmt, 0);
-    years = clamp(years, 0);
-    aprPercent = num(aprPercent, 0);
-    contribIncreasePct = num(contribIncreasePct, 0);
-    maxMonthlyContrib = num(maxMonthlyContrib, 0);
-    taxPct = clamp(num(taxPct, 0), 0, 1);
-    retireEnabled = !!retireEnabled;
-    retireAtYear = Math.max(0, Math.round(num(retireAtYear, 0)));
-    withdrawMonthly = Math.max(0, num(withdrawMonthly, 0));
-    inflationPct = Math.max(0, num(inflationPct, 0));
-    withdrawIndexToInflation = !!withdrawIndexToInflation;
-    const startContribMonth = Number.isFinite(contribStartMonth) ? Math.max(1, Math.round(contribStartMonth)) : 1;
-    // How many years into the wider timeline this run begins. Only affects how far
-    // inflation has already compounded when withdrawals are indexed.
-    const timelineOffset = Math.max(0, Math.round(num(timelineOffsetYears, 0)));
-
-    const monthsTotal = Math.max(0, Math.round(years * 12));
-    const monthlyRate = (aprPercent / 100) / 12;
-    const annualStepFactor = 1 + contribIncreasePct;
-    const monthlyCap = (maxMonthlyContrib > 0) ? maxMonthlyContrib : Infinity;
-
-    const msArr = Array.isArray(milestones) ? milestones : [];
-    const msByMonth = {};
-    const yearAgg = {};
-
-    const toAbsMonth = (ms) => {
-      if (Number.isFinite(ms?.absMonth)) return Math.max(0, Math.round(ms.absMonth));
-      return absMonthFromParts(ms?.year, ms?.timing, ms?.month);
+  function normalizeRunParams(params) {
+    const years = clamp(params.years, 0);
+    const contribIncreasePct = num(params.contribIncreasePct, 0);
+    const maxMonthlyContrib = num(params.maxMonthlyContrib, 0);
+    return {
+      principal: clamp(params.principal, 0),
+      contribAmt: clamp(params.contribAmt, 0),
+      contribFreq: params.contribFreq,
+      years,
+      monthsTotal: Math.max(0, Math.round(years * 12)),
+      contribIncreasePct,
+      annualStepFactor: 1 + contribIncreasePct,
+      monthlyCap: (maxMonthlyContrib > 0) ? maxMonthlyContrib : Infinity,
+      taxPct: clamp(num(params.taxPct, 0), 0, 1),
+      retireEnabled: !!params.retireEnabled,
+      retireAtYear: Math.max(0, Math.round(num(params.retireAtYear, 0))),
+      withdrawMonthly: Math.max(0, num(params.withdrawMonthly, 0)),
+      inflationPct: Math.max(0, num(params.inflationPct, 0)),
+      withdrawIndexToInflation: !!params.withdrawIndexToInflation,
+      startContribMonth: Number.isFinite(params.contribStartMonth)
+        ? Math.max(1, Math.round(params.contribStartMonth))
+        : 1,
+      // How many years into the wider timeline this run begins. Only affects how
+      // far inflation has already compounded when withdrawals are indexed.
+      timelineOffset: Math.max(0, Math.round(num(params.timelineOffsetYears, 0)))
     };
+  }
 
-    msArr.forEach(ms => {
-      let absMonth = toAbsMonth(ms);
+  function bucketMilestonesByMonth(milestones, monthsTotal) {
+    const byMonth = {};
+    (Array.isArray(milestones) ? milestones : []).forEach(ms => {
+      let absMonth = Number.isFinite(ms?.absMonth)
+        ? Math.max(0, Math.round(ms.absMonth))
+        : absMonthFromParts(ms?.year, ms?.timing, ms?.month);
       if (monthsTotal > 0) absMonth = Math.min(absMonth, monthsTotal);
       const month = (absMonth === 0) ? 0 : (((absMonth - 1) % 12) + 1);
-      const timing = (absMonth === 0) ? "immediate" : (ms?.timing || timingValueFromMonth(month));
-      const year = (absMonth === 0) ? 0 : Math.ceil(absMonth / 12);
-
-      if (!msByMonth[absMonth]) msByMonth[absMonth] = [];
-      msByMonth[absMonth].push({
-        year, month, timing, absMonth,
+      if (!byMonth[absMonth]) byMonth[absMonth] = [];
+      byMonth[absMonth].push({
+        year: (absMonth === 0) ? 0 : Math.ceil(absMonth / 12),
+        month,
+        timing: (absMonth === 0) ? "immediate" : (ms?.timing || timingValueFromMonth(month)),
+        absMonth,
         type: ms.type,
         amount: ms.amount,
         delta: ms.delta,
@@ -2583,17 +2832,82 @@
         color: ms.color || defaultColorFor(ms.type)
       });
     });
+    return byMonth;
+  }
 
-    let balance = principal;
-    let totalContrib = 0;
-    let totalInterest = 0;
-    let totalWithdrawals = 0;
+  // `rateForMonth(month, yearIndex)` supplies the growth rate; `observer` receives
+  // the opening balance and then one record per month.
+  function walkMonths(p, msByMonth, rateForMonth, observer) {
+    let balance = p.principal;
+    let currentContrib = p.contribAmt;
     let depletionMonth = null;
 
+    const applyEvents = (absMonth) => {
+      const items = msByMonth[absMonth] || [];
+      if (!items.length) return null;
+      const pre = balance;
+      const wanted = items.reduce((acc, it) => acc + num(it.delta, 0), 0);
+      balance = Math.max(0, balance + wanted);
+      return { absMonth, pre, post: balance, delta: balance - pre, items };
+    };
+
+    const opening = applyEvents(0);
+    if (observer && observer.onStart) observer.onStart(balance, opening);
+
+    for (let m = 1; m <= p.monthsTotal; m++) {
+      if (m > 1 && ((m - 1) % 12 === 0)) currentContrib *= p.annualStepFactor;
+
+      const yearIndex = Math.floor((m - 1) / 12);
+      const inRetirement = p.retireEnabled && (p.withdrawMonthly > 0) && (yearIndex >= p.retireAtYear);
+
+      let contribution = 0;
+      let withdrawal = 0;
+
+      if (!inRetirement && m >= p.startContribMonth) {
+        if (p.contribFreq === "annual") {
+          if (m % 12 === 0) contribution = Math.min(currentContrib, p.monthlyCap) * 12;
+        } else {
+          contribution = Math.min(currentContrib, p.monthlyCap);
+        }
+        balance += contribution;
+      } else if (inRetirement) {
+        const inflFactor = (p.withdrawIndexToInflation && p.inflationPct > 0)
+          ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
+          : 1;
+        const pre = balance;
+        balance = Math.max(0, balance - p.withdrawMonthly * inflFactor);
+        withdrawal = pre - balance;
+        if (depletionMonth === null && balance <= 0) depletionMonth = m;
+      }
+
+      const event = applyEvents(m);
+
+      let interest = balance * rateForMonth(m, yearIndex);
+      if (p.taxPct > 0) interest = interest * (1 - p.taxPct);
+      balance = Math.max(0, balance + interest);
+
+      if (observer && observer.onMonth) {
+        observer.onMonth({ month: m, yearIndex, contribution, withdrawal, interest, event, balance });
+      }
+    }
+
+    return { balance, depletionMonth };
+  }
+
+  function computeDeterministic(params) {
+    const p = normalizeRunParams(params);
+    const aprPercent = num(params.aprPercent, 0);
+    const monthlyRate = (aprPercent / 100) / 12;
+    const msByMonth = bucketMilestonesByMonth(params.milestones, p.monthsTotal);
+
+    const { principal, years, monthsTotal } = p;
+    let totalContrib = 0;
+    let totalWithdrawals = 0;
     let milestoneIn = 0;
     let milestoneOut = 0;
     let milestoneNet = 0;
 
+    const yearAgg = {};
     const seriesMonthly = [];
     const scheduleMonthly = [];
     const seriesYearly = [];
@@ -2601,110 +2915,68 @@
     const growthSeriesYearly = [];
     const eventInfoYearly = [];
 
-    const applyMonthEvents = (absMonth) => {
-      const items = msByMonth[absMonth] || [];
-      if (!items.length) return 0;
-      const pre = balance;
-      const wantedDelta = items.reduce((acc, it) => acc + num(it.delta, 0), 0);
-      balance = Math.max(0, balance + wantedDelta);
-      const post = balance;
-      const effectiveDelta = post - pre;
-
-      milestoneNet += effectiveDelta;
-      if (effectiveDelta > 0) milestoneIn += effectiveDelta;
-      if (effectiveDelta < 0) milestoneOut += Math.abs(effectiveDelta);
+    const recordEvent = (event) => {
+      if (!event) return 0;
+      const { absMonth, pre, post, delta, items } = event;
+      milestoneNet += delta;
+      if (delta > 0) milestoneIn += delta;
+      if (delta < 0) milestoneOut += Math.abs(delta);
 
       const year = (absMonth === 0) ? 0 : Math.ceil(absMonth / 12);
+      const tYears = (absMonth === 0) ? 0 : absMonth / 12;
       if (!yearAgg[year]) {
-        yearAgg[year] = {
-          year,
-          pre,
-          post,
-          delta: 0,
-          items: [],
-          months: new Set(),
-          tYears: absMonth === 0 ? 0 : absMonth / 12
-        };
+        yearAgg[year] = { year, pre, post, delta: 0, items: [], months: new Set(), tYears };
       }
       const agg = yearAgg[year];
       if (!Number.isFinite(agg.pre)) agg.pre = pre;
       agg.post = post;
-      agg.delta += effectiveDelta;
-      agg.tYears = Math.max(agg.tYears, absMonth === 0 ? 0 : absMonth / 12);
+      agg.delta += delta;
+      agg.tYears = Math.max(agg.tYears, tYears);
       items.forEach(it => {
         agg.items.push(it);
         if (it.month > 0) agg.months.add(it.month);
       });
-
-      return effectiveDelta;
+      return delta;
     };
 
-    applyMonthEvents(0);
-    seriesYearly[0] = balance;
-    netContribSeriesYearly[0] = principal + totalContrib + milestoneNet - totalWithdrawals;
-    growthSeriesYearly[0] = seriesYearly[0] - netContribSeriesYearly[0];
+    const run = walkMonths(p, msByMonth, () => monthlyRate, {
+      onStart(balance, event) {
+        recordEvent(event);
+        seriesYearly[0] = balance;
+        netContribSeriesYearly[0] = principal + totalContrib + milestoneNet - totalWithdrawals;
+        growthSeriesYearly[0] = seriesYearly[0] - netContribSeriesYearly[0];
+      },
+      onMonth(step) {
+        totalContrib += step.contribution;
+        totalWithdrawals += step.withdrawal;
+        const eventDelta = recordEvent(step.event);
 
-    let currentContrib = contribAmt;
+        seriesMonthly.push({
+          month: step.month,
+          balance: step.balance,
+          invested: principal + totalContrib,
+          interestEarned: step.balance - (principal + totalContrib + milestoneNet)
+        });
+        scheduleMonthly.push({
+          month: step.month,
+          contribution: step.contribution,
+          retirementWithdrawal: step.withdrawal,
+          interest: step.interest,
+          ending: step.balance,
+          eventDelta
+        });
 
-    for (let m = 1; m <= monthsTotal; m++) {
-      const yearIndex = Math.floor((m - 1) / 12);
-
-      if (m > 1 && ((m - 1) % 12 === 0)) {
-        currentContrib *= annualStepFactor;
-      }
-
-      let contribution = 0;
-      let retirementWithdrawal = 0;
-
-      const inRetirement = retireEnabled && (withdrawMonthly > 0) && (yearIndex >= retireAtYear);
-
-      if (!inRetirement && m >= startContribMonth) {
-        if (contribFreq === "annual") {
-          if (m % 12 === 0) {
-            const cap = Math.min(currentContrib, monthlyCap);
-            contribution = cap * 12;
-          }
-        } else {
-          contribution = Math.min(currentContrib, monthlyCap);
+        if (step.month % 12 === 0) {
+          const y = Math.round(step.month / 12);
+          seriesYearly[y] = step.balance;
+          netContribSeriesYearly[y] = principal + totalContrib + milestoneNet - totalWithdrawals;
+          growthSeriesYearly[y] = seriesYearly[y] - netContribSeriesYearly[y];
         }
-        balance += contribution;
-        totalContrib += contribution;
-      } else if (inRetirement) {
-        const inflFactor = (withdrawIndexToInflation && inflationPct > 0)
-          ? Math.pow(1 + inflationPct, yearIndex + timelineOffset)
-          : 1;
-        const target = withdrawMonthly * inflFactor;
-        const pre = balance;
-        balance = Math.max(0, balance - target);
-        retirementWithdrawal = pre - balance;
-        totalWithdrawals += retirementWithdrawal;
-        if (depletionMonth === null && balance <= 0) depletionMonth = m;
       }
+    });
 
-      const eventDelta = applyMonthEvents(m);
-
-      let interest = balance * monthlyRate;
-      if (taxPct > 0) interest = interest * (1 - taxPct);
-      balance += interest;
-      totalInterest += interest;
-
-      seriesMonthly.push({ month: m, balance, invested: principal + totalContrib, interestEarned: balance - (principal + totalContrib + milestoneNet) });
-      scheduleMonthly.push({
-        month: m,
-        contribution,
-        retirementWithdrawal,
-        interest,
-        ending: balance,
-        eventDelta
-      });
-
-      if (m % 12 === 0) {
-        const y = Math.round(m / 12);
-        seriesYearly[y] = balance;
-        netContribSeriesYearly[y] = principal + totalContrib + milestoneNet - totalWithdrawals;
-        growthSeriesYearly[y] = seriesYearly[y] - netContribSeriesYearly[y];
-      }
-    }
+    const balance = run.balance;
+    const depletionMonth = run.depletionMonth;
 
     const maxYear = Math.max(0, Math.ceil(years));
     for (let y = 0; y <= maxYear; y++) {
@@ -2744,7 +3016,7 @@
     const effectiveAPR = (aprPercent > 0) ? (Math.pow(1 + monthlyRate, 12) - 1) : 0;
 
     const cross = computeCrossoverFromSchedule({ scheduleMonthly });
-    const crossoverYear = (retireEnabled ? null : cross.year);
+    const crossoverYear = (p.retireEnabled ? null : cross.year);
     const crossoverText = (crossoverYear === null) ? "" : `Growth surpasses contributions in Year ${crossoverYear}`;
 
     return {
@@ -3047,104 +3319,31 @@
   }
 
   function simulateTrial(params, nextNormal) {
-    let {
-      principal, contribAmt, contribFreq, years, aprPercent, rateLow, rateHigh,
-      contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
-      retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation,
-      contribStartMonth, timelineOffsetYears
-    } = params;
+    const p = normalizeRunParams(params);
+    const msByMonth = bucketMilestonesByMonth(params.milestones, p.monthsTotal);
+    const { muLogM, sigmaLogM } = lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh);
 
-    principal = clamp(principal, 0);
-    years = clamp(years, 0);
-    contribAmt = clamp(contribAmt, 0);
-    contribIncreasePct = num(contribIncreasePct, 0);
-    maxMonthlyContrib = num(maxMonthlyContrib, 0);
-    taxPct = clamp(num(taxPct, 0), 0, 1);
-    retireEnabled = !!retireEnabled;
-    retireAtYear = Math.max(0, Math.round(num(retireAtYear, 0)));
-    withdrawMonthly = Math.max(0, num(withdrawMonthly, 0));
-    inflationPct = Math.max(0, num(inflationPct, 0));
-    withdrawIndexToInflation = !!withdrawIndexToInflation;
-    const startContribMonth = Number.isFinite(contribStartMonth) ? Math.max(1, Math.round(contribStartMonth)) : 1;
-    const timelineOffset = Math.max(0, Math.round(num(timelineOffsetYears, 0)));
+    const seriesYearly = [];
 
-    const monthsTotal = Math.max(0, Math.round(years * 12));
-    const annualStepFactor = 1 + contribIncreasePct;
-    const monthlyCap = (maxMonthlyContrib > 0) ? maxMonthlyContrib : Infinity;
+    // A fresh draw every month, so a bad stretch early in retirement can sink a trial
+    // that the same returns in a different order would not.
+    const rateForMonth = () => Math.exp(muLogM + sigmaLogM * nextNormal()) - 1;
 
-    const { muLogM, sigmaLogM } = lognormalMonthlyParams(aprPercent, rateLow, rateHigh);
-
-    const msArr = Array.isArray(milestones) ? milestones : [];
-    const msByMonth = {};
-    msArr.forEach(ms => {
-      const absMonth = Number.isFinite(ms?.absMonth) ? Math.max(0, Math.round(ms.absMonth)) : absMonthFromParts(ms?.year, ms?.timing, ms?.month);
-      if (!msByMonth[absMonth]) msByMonth[absMonth] = [];
-      msByMonth[absMonth].push(ms);
+    const run = walkMonths(p, msByMonth, rateForMonth, {
+      onStart(balance) { seriesYearly[0] = balance; },
+      onMonth(step) {
+        if (step.month % 12 === 0) seriesYearly[Math.round(step.month / 12)] = step.balance;
+      }
     });
 
-    let balance = principal;
-    const seriesYearly = [];
-    let currentContrib = contribAmt;
-    let depletionMonth = null;
-
-    const applyEvents = (absMonth) => {
-      const items = msByMonth[absMonth] || [];
-      if (!items.length) return;
-      const delta = items.reduce((acc, it) => acc + num(it.delta, 0), 0);
-      balance = Math.max(0, balance + delta);
-    };
-
-    // Month-0 events land before the opening balance is recorded, matching
-    // computeDeterministic (which the old loop did not).
-    applyEvents(0);
-    seriesYearly[0] = balance;
-
-    for (let m = 1; m <= monthsTotal; m++) {
-      if (m > 1 && ((m - 1) % 12 === 0)) {
-        currentContrib *= annualStepFactor;
-      }
-
-      const yearIndex = Math.floor((m - 1) / 12);
-      const inRetirement = retireEnabled && (withdrawMonthly > 0) && (yearIndex >= retireAtYear);
-
-      if (!inRetirement && m >= startContribMonth) {
-        if (contribFreq === "annual") {
-          if (m % 12 === 0) {
-            balance += Math.min(currentContrib, monthlyCap) * 12;
-          }
-        } else {
-          balance += Math.min(currentContrib, monthlyCap);
-        }
-      } else if (inRetirement) {
-        const inflFactor = (withdrawIndexToInflation && inflationPct > 0)
-          ? Math.pow(1 + inflationPct, yearIndex + timelineOffset)
-          : 1;
-        balance = Math.max(0, balance - withdrawMonthly * inflFactor);
-        if (depletionMonth === null && balance <= 0) depletionMonth = m;
-      }
-
-      applyEvents(m);
-
-      // A fresh return every month, so a bad stretch early in retirement can sink a
-      // trial that the same returns in a different order would not. Drawing once per
-      // year and reusing it for 12 months hid exactly that risk.
-      let interest = balance * (Math.exp(muLogM + sigmaLogM * nextNormal()) - 1);
-      if (taxPct > 0) interest = interest * (1 - taxPct);
-      balance = Math.max(0, balance + interest);
-
-      if (m % 12 === 0) {
-        seriesYearly[Math.round(m / 12)] = balance;
-      }
-    }
-
-    const maxYear = Math.max(0, Math.ceil(years));
+    const maxYear = Math.max(0, Math.ceil(p.years));
     for (let y = 0; y <= maxYear; y++) {
       if (typeof seriesYearly[y] !== "number") {
-        seriesYearly[y] = (y === 0) ? balance : (seriesYearly[y - 1] ?? balance);
+        seriesYearly[y] = (y === 0) ? run.balance : (seriesYearly[y - 1] ?? run.balance);
       }
     }
 
-    return { seriesYearly, depletionMonth };
+    return { seriesYearly, depletionMonth: run.depletionMonth };
   }
 
   // Linear interpolation between order statistics. The old nearest-rank version
@@ -3451,6 +3650,8 @@
     }
     readUIIntoState();
     updateUIState();
+    // Placed before the early return below so an empty horizon is still remembered.
+    saveState();
 
     const ui = appState.ui;
     const chainActive = appState.chainMode && appState.scenarios.length > 0;
@@ -3806,6 +4007,8 @@
     appState.chart.lastData = chartData;
     requestDraw();
     renderComparisonTable();
+    // An open data table tracks the projection instead of going stale.
+    if ($("dataTableWrap") && !$("dataTableWrap").hidden) renderDataTable();
   }
 
   function drawChart(data) {
@@ -4531,6 +4734,427 @@
     console.log("Selftest results:", results, "failures:", results.filter(r => !r.pass));
   }
 
+  /* ---- Export, print and data table --------------------------------------
+     Everything here works from appState.chart.lastData, so an export always
+     matches what is on screen -- including whether figures are inflation
+     adjusted and whether the run is deterministic, chained or Monte Carlo. */
+
+  function exportSeries() {
+    const data = appState.chart.lastData;
+    if (!data) return null;
+    const years = Math.max(0, Math.round(num(data.years, 0)));
+    const isMC = data.mode === "mc";
+    const cols = [{ key: "year", label: "Year" }];
+    if (isMC) {
+      cols.push({ key: "p10", label: "P10 (weak)" }, { key: "p50", label: "P50 (median)" }, { key: "p90", label: "P90 (strong)" });
+    } else {
+      cols.push({ key: "total", label: "Total balance" }, { key: "net", label: "Net contributions" }, { key: "growth", label: "Growth" });
+    }
+    if (data.delaySeries) cols.push({ key: "delay", label: "Delayed start" });
+
+    const rows = [];
+    for (let y = 0; y <= years; y++) {
+      const row = { year: y };
+      if (isMC) {
+        row.p10 = num(data.p10?.[y], 0);
+        row.p50 = num(data.p50?.[y], 0);
+        row.p90 = num(data.p90?.[y], 0);
+      } else {
+        row.total = num(data.baseSeries?.[y], 0);
+        row.net = num(data.netContribSeries?.[y], 0);
+        row.growth = num(data.growthSeries?.[y], 0);
+      }
+      if (data.delaySeries) row.delay = num(data.delaySeries[y], 0);
+      rows.push(row);
+    }
+    return { cols, rows, years, isMC };
+  }
+
+  function chartHeadings() {
+    return {
+      title: document.querySelector(".chartTitle")?.textContent || "Balance over time",
+      subtitle: $("chartSubtitle")?.textContent || ""
+    };
+  }
+
+  function exportFilename(ext) {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return `wealth-projection-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.${ext}`;
+  }
+
+  function downloadBlob(filename, mime, payload) {
+    try {
+      const blob = (payload instanceof Blob) ? payload : new Blob([payload], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // Composites the live canvas onto an opaque sheet with its heading, so a shared
+  // image is self-describing rather than an unlabelled plot.
+  function renderExportCanvas(scale = 2) {
+    const src = $("chart");
+    const wrap = $("chartWrap");
+    if (!src || !wrap) return null;
+    const cssW = Math.max(320, Math.round(wrap.clientWidth));
+    const cssH = Math.max(220, Math.round(wrap.clientHeight));
+    const padX = 26, padTop = 66, padBottom = 22;
+    const outW = cssW + padX * 2;
+    const outH = cssH + padTop + padBottom;
+
+    const out = document.createElement("canvas");
+    out.width = Math.round(outW * scale);
+    out.height = Math.round(outH * scale);
+    const ctx = out.getContext("2d");
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, outW, outH);
+
+    const fam = getComputedStyle(document.body).fontFamily;
+    const head = chartHeadings();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#0f2238";
+    ctx.font = "700 19px " + fam;
+    ctx.fillText(head.title, padX, 32);
+    ctx.fillStyle = "#546981";
+    ctx.font = "12px " + fam;
+    ctx.fillText(head.subtitle, padX, 52);
+
+    ctx.drawImage(src, padX, padTop, cssW, cssH);
+    return { canvas: out, width: out.width, height: out.height };
+  }
+
+  function exportRaster(type, ext, quality) {
+    const r = renderExportCanvas(2);
+    if (!r) return;
+    if (r.canvas.toBlob) {
+      r.canvas.toBlob(blob => {
+        if (blob) downloadBlob(exportFilename(ext), type, blob);
+      }, type, quality);
+    } else {
+      downloadBlob(exportFilename(ext), type, dataURLToBytes(r.canvas.toDataURL(type, quality)));
+    }
+  }
+
+  function dataURLToBytes(dataUrl) {
+    const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+    const bin = atob(base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  /* A minimal single-page PDF wrapping the chart as a DCTDecode (JPEG) image.
+     JPEG is used precisely because PDF decodes it natively, so no compression
+     library is needed and the file stays self-contained. */
+  function buildPdfWithJpeg(jpegBytes, pxW, pxH) {
+    const A4_SHORT = 595.28, A4_LONG = 841.89;
+    const landscape = pxW >= pxH;
+    const pageW = landscape ? A4_LONG : A4_SHORT;
+    const pageH = landscape ? A4_SHORT : A4_LONG;
+    const margin = 30;
+    const fit = Math.min((pageW - margin * 2) / pxW, (pageH - margin * 2) / pxH);
+    const drawW = pxW * fit;
+    const drawH = pxH * fit;
+    const x = (pageW - drawW) / 2;
+    const y = (pageH - drawH) / 2;
+
+    const latin1 = (s) => {
+      const a = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xFF;
+      return a;
+    };
+    const chunks = [];
+    let length = 0;
+    const push = (bytes) => { chunks.push(bytes); length += bytes.length; };
+    const pushStr = (s) => push(latin1(s));
+
+    const offsets = [];
+    const addObj = (id, dict, streamBytes) => {
+      offsets[id] = length;
+      pushStr(`${id} 0 obj\n${dict}\n`);
+      if (streamBytes) {
+        pushStr("stream\n");
+        push(streamBytes);
+        pushStr("\nendstream\n");
+      }
+      pushStr("endobj\n");
+    };
+
+    pushStr("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+    addObj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    addObj(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+    addObj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW.toFixed(2)} ${pageH.toFixed(2)}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>`);
+    addObj(4, `<< /Type /XObject /Subtype /Image /Width ${pxW} /Height ${pxH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length} >>`, jpegBytes);
+    const content = `q\n${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)} cm\n/Im0 Do\nQ\n`;
+    addObj(5, `<< /Length ${content.length} >>`, latin1(content));
+
+    const xrefPos = length;
+    let xref = "xref\n0 6\n0000000000 65535 f \n";
+    for (let i = 1; i <= 5; i++) xref += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+    pushStr(xref);
+    pushStr(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`);
+
+    const outBytes = new Uint8Array(length);
+    let at = 0;
+    chunks.forEach(c => { outBytes.set(c, at); at += c.length; });
+    return outBytes;
+  }
+
+  function exportPDF() {
+    const r = renderExportCanvas(2);
+    if (!r) return;
+    const jpeg = dataURLToBytes(r.canvas.toDataURL("image/jpeg", 0.92));
+    const pdf = buildPdfWithJpeg(jpeg, r.width, r.height);
+    downloadBlob(exportFilename("pdf"), "application/pdf", pdf);
+  }
+
+  /* True vector output. The on-screen chart is a canvas, so this re-plots the
+     same series as SVG geometry rather than wrapping a bitmap -- the point of a
+     vector export being that it stays editable and sharp at any size. It always
+     draws the full horizon; zoom and pan are screen state. */
+  function buildChartSVG() {
+    const data = appState.chart.lastData;
+    if (!data) return null;
+    const W = 980, H = 540;
+    const pad = { l: 84, r: 28, t: 74, b: 74 };
+    const plotW = W - pad.l - pad.r;
+    const plotH = H - pad.t - pad.b;
+    const yearsInt = Math.max(1, Math.round(num(data.years, 1)));
+    const isMC = data.mode === "mc";
+    const logScale = !!appState.ui.logScale;
+    const pal = appState.chart.palette;
+
+    const pool = [];
+    const add = (arr) => { if (Array.isArray(arr)) pool.push(arr); };
+    if (isMC) { add(data.p10); add(data.p50); add(data.p90); }
+    else { add(data.baseSeries); add(data.netContribSeries); }
+    if (data.delaySeries) add(data.delaySeries);
+
+    let maxVal = 0;
+    let minVal = Infinity;
+    pool.forEach(arr => arr.forEach(v => {
+      const n = num(v, 0);
+      if (n > maxVal) maxVal = n;
+      if (n < minVal) minVal = n;
+    }));
+    if (!Number.isFinite(minVal)) minVal = 0;
+    if (logScale) {
+      minVal = Math.max(1, minVal);
+      maxVal = Math.max(maxVal, minVal * 10);
+    } else {
+      minVal = Math.min(0, minVal);
+      maxVal = (maxVal > 0) ? maxVal * 1.05 : 1;
+    }
+
+    const xFor = (y) => pad.l + (y / yearsInt) * plotW;
+    const yFor = (v) => {
+      const n = num(v, 0);
+      if (logScale) {
+        const lo = Math.log10(Math.max(1, minVal));
+        const hi = Math.log10(Math.max(10, maxVal));
+        const t = (Math.log10(Math.max(1, n)) - lo) / ((hi - lo) || 1);
+        return pad.t + plotH - t * plotH;
+      }
+      const t = (n - minVal) / ((maxVal - minVal) || 1);
+      return pad.t + plotH - t * plotH;
+    };
+
+    const pts = (arr) => {
+      const out = [];
+      for (let y = 0; y <= yearsInt; y++) out.push(`${xFor(y).toFixed(2)},${yFor(arr?.[y] ?? 0).toFixed(2)}`);
+      return out.join(" ");
+    };
+    const areaPath = (arr) => {
+      const top = [];
+      for (let y = 0; y <= yearsInt; y++) top.push(`${y === 0 ? "M" : "L"}${xFor(y).toFixed(2)},${yFor(arr?.[y] ?? 0).toFixed(2)}`);
+      const base = yFor(logScale ? minVal : Math.max(minVal, 0)).toFixed(2);
+      return `${top.join(" ")} L${xFor(yearsInt).toFixed(2)},${base} L${xFor(0).toFixed(2)},${base} Z`;
+    };
+
+    const parts = [];
+    parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`);
+
+    const head = chartHeadings();
+    parts.push(`<text x="${pad.l}" y="34" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="19" font-weight="700" fill="#0f2238">${escapeHtml(head.title)}</text>`);
+    parts.push(`<text x="${pad.l}" y="54" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" fill="#546981">${escapeHtml(head.subtitle)}</text>`);
+    parts.push(`<rect x="${pad.l}" y="${pad.t}" width="${plotW}" height="${plotH}" fill="#fbfdff" stroke="#c8d8e8"/>`);
+
+    const yTicks = logScale ? buildLogTicks(minVal, maxVal) : buildLinearTicks(minVal, maxVal, 6);
+    yTicks.forEach(t => {
+      const y = yFor(t);
+      if (y < pad.t - 1 || y > pad.t + plotH + 1) return;
+      parts.push(`<line x1="${pad.l}" y1="${y.toFixed(2)}" x2="${(pad.l + plotW).toFixed(2)}" y2="${y.toFixed(2)}" stroke="#e2eaf3"/>`);
+      parts.push(`<text x="${pad.l - 8}" y="${(y + 4).toFixed(2)}" text-anchor="end" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5f7288">${escapeHtml(compactCurrency(t))}</text>`);
+    });
+
+    const step = yearTickStep(yearsInt);
+    for (let t = 0; t <= yearsInt; t += step) {
+      const x = xFor(t);
+      parts.push(`<line x1="${x.toFixed(2)}" y1="${pad.t}" x2="${x.toFixed(2)}" y2="${(pad.t + plotH).toFixed(2)}" stroke="#e2eaf3"/>`);
+      parts.push(`<text x="${x.toFixed(2)}" y="${(pad.t + plotH + 18).toFixed(2)}" text-anchor="middle" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="11" fill="#5f7288">${t}</text>`);
+    }
+    parts.push(`<text x="${(pad.l + plotW / 2).toFixed(2)}" y="${(pad.t + plotH + 36).toFixed(2)}" text-anchor="middle" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#5f7288">Years</text>`);
+
+    const legend = [];
+    if (isMC) {
+      const band = [];
+      for (let y = 0; y <= yearsInt; y++) band.push(`${y === 0 ? "M" : "L"}${xFor(y).toFixed(2)},${yFor(data.p90?.[y] ?? 0).toFixed(2)}`);
+      for (let y = yearsInt; y >= 0; y--) band.push(`L${xFor(y).toFixed(2)},${yFor(data.p10?.[y] ?? 0).toFixed(2)}`);
+      parts.push(`<path d="${band.join(" ")} Z" fill="${colorWithAlpha(pal.mcBand, 0.28)}"/>`);
+      parts.push(`<polyline points="${pts(data.p50)}" fill="none" stroke="${pal.mcMedian}" stroke-width="2.4"/>`);
+      legend.push({ label: "P50 median", color: pal.mcMedian }, { label: "P10-P90 range", color: pal.mcBand });
+    } else {
+      parts.push(`<path d="${areaPath(data.baseSeries)}" fill="${colorWithAlpha(pal.growthFill, 0.18)}"/>`);
+      parts.push(`<path d="${areaPath(data.netContribSeries)}" fill="${colorWithAlpha(pal.contribFill, 0.26)}"/>`);
+      parts.push(`<polyline points="${pts(data.baseSeries)}" fill="none" stroke="${pal.totalLine}" stroke-width="2.4"/>`);
+      legend.push({ label: "Total balance", color: pal.totalLine }, { label: "Net contributions", color: pal.contribFill }, { label: "Growth", color: pal.growthFill });
+    }
+    if (data.delaySeries) {
+      parts.push(`<polyline points="${pts(data.delaySeries)}" fill="none" stroke="${pal.delayLine}" stroke-width="2" stroke-dasharray="6 5"/>`);
+      legend.push({ label: "Delayed start", color: pal.delayLine });
+    }
+
+    (Array.isArray(data.milestones) ? data.milestones : []).forEach(ms => {
+      const yr = Math.max(0, Math.min(yearsInt, Math.round(num(ms?.year, 0))));
+      const x = xFor(yr);
+      parts.push(`<line x1="${x.toFixed(2)}" y1="${pad.t}" x2="${x.toFixed(2)}" y2="${(pad.t + plotH).toFixed(2)}" stroke="rgba(71,85,105,0.35)" stroke-dasharray="5 5"/>`);
+      parts.push(`<text x="${x.toFixed(2)}" y="${(pad.t + 16).toFixed(2)}" text-anchor="middle" font-size="14">${escapeHtml(ms?.icon || "")}</text>`);
+    });
+
+    let lx = pad.l;
+    const ly = H - 22;
+    legend.forEach(item => {
+      parts.push(`<rect x="${lx}" y="${ly - 9}" width="11" height="11" rx="3" fill="${normalizeHexColor(item.color, "#60a5fa")}"/>`);
+      parts.push(`<text x="${lx + 17}" y="${ly}" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="11.5" fill="#334d67">${escapeHtml(item.label)}</text>`);
+      lx += 24 + item.label.length * 6.4;
+    });
+
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">\n${parts.join("\n")}\n</svg>\n`;
+  }
+
+  function exportSVG() {
+    const svg = buildChartSVG();
+    if (!svg) return;
+    downloadBlob(exportFilename("svg"), "image/svg+xml;charset=utf-8", svg);
+  }
+
+  function exportCSV() {
+    const s = exportSeries();
+    if (!s) return;
+    const esc = (v) => {
+      const str = String(v);
+      return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const lines = [s.cols.map(c => esc(c.label)).join(",")];
+    s.rows.forEach(row => {
+      lines.push(s.cols.map(c => esc(c.key === "year" ? row.year : Math.round(num(row[c.key], 0)))).join(","));
+    });
+    // BOM so Excel reads it as UTF-8 rather than the local codepage.
+    downloadBlob(exportFilename("csv"), "text/csv;charset=utf-8", "﻿" + lines.join("\r\n"));
+  }
+
+  function exportXLS() {
+    const s = exportSeries();
+    if (!s) return;
+    const head = chartHeadings();
+    const body = s.rows.map(row =>
+      `<tr>${s.cols.map(c => `<td>${c.key === "year" ? row.year : Math.round(num(row[c.key], 0))}</td>`).join("")}</tr>`
+    ).join("");
+    // Excel opens an HTML table served under its own MIME type; this is the same
+    // approach the charting libraries use for "Download XLS".
+    const html = `<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>
+<table><thead><tr><th colspan="${s.cols.length}">${escapeHtml(head.title)} - ${escapeHtml(head.subtitle)}</th></tr>
+<tr>${s.cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table>
+</body></html>`;
+    downloadBlob(exportFilename("xls"), "application/vnd.ms-excel", html);
+  }
+
+  function renderDataTable() {
+    const s = exportSeries();
+    const wrap = $("dataTableWrap");
+    const table = $("dataTable");
+    const caption = $("dataTableCaption");
+    if (!wrap || !table) return;
+    if (!s) {
+      wrap.hidden = true;
+      return;
+    }
+    if (caption) caption.textContent = `${chartHeadings().title} - ${s.rows.length} rows`;
+    const header = `<thead><tr>${s.cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>`;
+    const body = s.rows.map(row =>
+      `<tr>${s.cols.map(c => `<td>${c.key === "year" ? row.year : fmt0.format(num(row[c.key], 0))}</td>`).join("")}</tr>`
+    ).join("");
+    table.innerHTML = `${header}<tbody>${body}</tbody>`;
+    wrap.hidden = false;
+  }
+
+  function printChart() {
+    const r = renderExportCanvas(2);
+    if (!r) return;
+    const s = exportSeries();
+    const head = chartHeadings();
+    let area = $("printArea");
+    if (!area) {
+      area = document.createElement("div");
+      area.id = "printArea";
+      document.body.appendChild(area);
+    }
+    // Long horizons are thinned so the table does not run to many pages.
+    const stride = s ? Math.max(1, Math.ceil(s.rows.length / 26)) : 1;
+    const tableHTML = s
+      ? `<table><thead><tr>${s.cols.map(c => `<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead><tbody>${
+          s.rows.filter(row => row.year % stride === 0 || row.year === s.years)
+                .map(row => `<tr>${s.cols.map(c => `<td>${c.key === "year" ? row.year : fmt0.format(num(row[c.key], 0))}</td>`).join("")}</tr>`).join("")
+        }</tbody></table>`
+      : "";
+
+    area.innerHTML = `<h1>${escapeHtml(head.title)}</h1><div class="printSub">${escapeHtml(head.subtitle)}</div>`;
+    const img = new Image();
+    img.alt = head.title;
+    // Print only once the bitmap is decoded, otherwise the sheet comes out blank.
+    img.onload = () => {
+      area.insertAdjacentHTML("beforeend", tableHTML);
+      window.print();
+    };
+    img.onerror = () => window.print();
+    area.appendChild(img);
+    img.src = r.canvas.toDataURL("image/png");
+  }
+
+  function runExportAction(action) {
+    switch (action) {
+      case "print": printChart(); break;
+      case "png": exportRaster("image/png", "png"); break;
+      case "jpeg": exportRaster("image/jpeg", "jpg", 0.92); break;
+      case "pdf": exportPDF(); break;
+      case "svg": exportSVG(); break;
+      case "csv": exportCSV(); break;
+      case "xls": exportXLS(); break;
+      case "table": renderDataTable(); break;
+      default: break;
+    }
+  }
+
+  function closeExportMenu() {
+    const menu = $("exportMenu");
+    const btn = $("exportMenuBtn");
+    if (menu) menu.hidden = true;
+    if (btn) btn.setAttribute("aria-expanded", "false");
+  }
+
   function bindEvents() {
     const inputIds = [
       "principal","rateBase","contrib","contribIncrease","maxContrib","years","rateLow","rateHigh",
@@ -4641,6 +5265,30 @@
     const saveBtn = $("saveScenario");
     if (saveBtn) saveBtn.addEventListener("click", saveScenario);
 
+    const resetBtn = $("resetAll");
+    if (resetBtn) {
+      let armedTimer = null;
+      const disarm = () => {
+        if (armedTimer !== null) { clearTimeout(armedTimer); armedTimer = null; }
+        resetBtn.classList.remove("isArmed");
+        resetBtn.textContent = "Reset";
+      };
+      resetBtn.addEventListener("click", () => {
+        if (!resetBtn.classList.contains("isArmed")) {
+          resetBtn.classList.add("isArmed");
+          resetBtn.textContent = "Erase everything?";
+          armedTimer = setTimeout(disarm, 4000);
+          return;
+        }
+        disarm();
+        resetToDefaults();
+      });
+      resetBtn.addEventListener("blur", disarm);
+      resetBtn.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") disarm();
+      });
+    }
+
     const fsBtn = $("fullscreenToggle");
     const setChartFullscreen = (enabled) => {
       const wrap = $("chartWrap");
@@ -4658,15 +5306,41 @@
       setChartFullscreen(!wrap.classList.contains("fullscreen"));
     });
 
+    const exportBtn = $("exportMenuBtn");
+    const exportMenu = $("exportMenu");
+    if (exportBtn && exportMenu) {
+      exportBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const opening = exportMenu.hidden;
+        exportMenu.hidden = !opening;
+        exportBtn.setAttribute("aria-expanded", opening ? "true" : "false");
+      });
+      exportMenu.addEventListener("click", (e) => {
+        const item = e.target?.closest?.(".exportItem[data-export]");
+        if (!item) return;
+        closeExportMenu();
+        // Let the menu paint as closed before a print dialog or download starts.
+        setTimeout(() => runExportAction(item.dataset.export), 0);
+      });
+    }
+
+    const tableClose = $("dataTableClose");
+    if (tableClose) tableClose.addEventListener("click", () => {
+      const wrap = $("dataTableWrap");
+      if (wrap) wrap.hidden = true;
+    });
+
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       closeAllIconPickers();
+      closeExportMenu();
       const wrap = $("chartWrap");
       if (!wrap || !wrap.classList.contains("fullscreen")) return;
       setChartFullscreen(false);
     });
     document.addEventListener("click", (e) => {
       const tgt = e.target;
+      if (!tgt?.closest?.(".exportWrap")) closeExportMenu();
       if (tgt?.closest?.(".msIconPicker") || tgt?.closest?.(".msIconGrid")) return;
       closeAllIconPickers();
     });
@@ -4738,12 +5412,21 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    // Read the markup's defaults first and keep a pristine copy: that snapshot is
+    // what Reset restores to, so it must be captured before anything is restored.
     initStateFromDOM();
+    shippedDefaults = deepCopy(persistableState());
+
+    const restored = restoreState();
+
+    suppressEvents = true;
     applyStateToUI();
+    suppressEvents = false;
     updateUIState();
     bindEvents();
     renderMilestones();
     renderScenarios();
+    if (restored) renderComparisonTable();
     calculate();
     initChartInteractions();
     const params = new URLSearchParams(window.location.search);
