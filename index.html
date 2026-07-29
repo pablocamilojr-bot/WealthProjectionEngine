@@ -657,9 +657,8 @@
     padding:6px;
     border:1px solid rgba(191,208,226,0.95);
     border-radius:12px;
-    background:rgba(255,255,255,0.97);
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
+    /* 97% opaque -- the blur behind it was invisible and only added compositing risk. */
+    background:#ffffff;
     box-shadow:0 16px 34px rgba(15,23,42,0.16),0 2px 8px rgba(15,23,42,0.09);
   }
   .exportMenu[hidden]{ display:none; }
@@ -790,14 +789,24 @@
     transform:none;
     filter:none;
   }
+  /* The canvas used to sit inside an overflow:hidden box with a 20px radius, which
+     forces a rounded mask onto a composited canvas layer -- the exact arrangement
+     that makes Firefox's accelerated compositor paint the whole area black while
+     the canvas's own pixels are perfectly correct.
+
+     The clip is gone and the canvas is inset instead, so it needs no mask at all:
+     square corners, sitting far enough inside the rounded border never to cross it.
+     This is invisible because the canvas paints the same gradient as the box
+     behind it. Nothing depended on the clip -- the tooltip is already clamped to
+     these bounds in JS. */
   .chartWrap{
     position:relative;
     width:100%;
     height:420px;
+    padding:7px;
     border:1px solid var(--border);
     border-radius:20px;
     background:linear-gradient(180deg,#fdfefe,#f4f8fd);
-    overflow:hidden;
     box-shadow:var(--shadow-edge),var(--shadow-soft);
   }
   canvas{ width:100%; height:100%; display:block; cursor:crosshair; }
@@ -858,15 +867,19 @@
     min-width:190px;
     max-width:260px;
     padding:11px 12px;
-    background:rgba(255,255,255,0.73);
+    /* Was rgba(...,0.73) with backdrop-filter:blur(8px). A backdrop-filter element
+       inside .chartWrap -- which is overflow:hidden with a border-radius -- forces
+       the browser to build a backdrop root inside a clipped, rounded, composited
+       box. Firefox has long-standing bugs there that paint the whole area solid
+       black. The blur was near-invisible behind an almost-opaque panel, so it is
+       not worth the risk; a solid panel is also more legible over a chart. */
+    background:#ffffff;
     border:1px solid rgba(198,215,234,0.9);
     border-radius:12px;
     font-size:12px;
     color:#17304b;
     pointer-events:none;
     box-shadow:0 16px 34px rgba(15,23,42,0.18),0 1px 6px rgba(15,23,42,0.12);
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
     z-index:4;
   }
   .chartTooltip .ttTitle{
@@ -1056,9 +1069,7 @@
     padding:8px;
     border:1px solid rgba(191,208,226,0.95);
     border-radius:12px;
-    background:rgba(255,255,255,0.9);
-    backdrop-filter:blur(8px);
-    -webkit-backdrop-filter:blur(8px);
+    background:#ffffff;
     box-shadow:0 14px 28px rgba(15,23,42,0.14),0 2px 8px rgba(15,23,42,0.08);
     z-index:6;
   }
@@ -1151,9 +1162,7 @@
       box-shadow:0 -4px 20px rgba(0,0,0,0.1);
       margin:0 -24px -24px -24px;
       padding:14px 24px calc(14px + env(safe-area-inset-bottom));
-      background:rgba(255,255,255,0.96);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
+      background:#ffffff;
     }
     .mobileResultsToggle{
       display:inline-flex;
@@ -1630,6 +1639,9 @@
       dimmedSeries: {},
       hoverSeries: null,
       activeYear: null,
+      // Fractional position under the cursor. activeYear stays rounded because
+      // milestone grouping is per-year; activeT drives the read-out.
+      activeT: null,
       activeX: null,
       hoverX: null,
       hoverY: null,
@@ -3668,6 +3680,53 @@
     };
   }
 
+  /* Read a series at a fractional index. The chart draws straight segments between
+     stored points, so interpolating is exactly what the eye is following. */
+  function seriesValueAt(arr, idx) {
+    if (!Array.isArray(arr) || !arr.length) return null;
+    const at = Math.max(0, Math.min(arr.length - 1, num(idx, 0)));
+    const lo = Math.floor(at);
+    const hi = Math.ceil(at);
+    const a = num(arr[lo], 0);
+    if (lo === hi) return a;
+    return a + (num(arr[hi], a) - a) * (at - lo);
+  }
+
+  // The headline balance under the cursor. Deterministic runs carry a true monthly
+  // series, so the figure is the modelled balance for that month, not a guess
+  // between year markers. Monte Carlo percentiles only exist yearly.
+  function balanceAtYears(data, t) {
+    if (!data) return null;
+    if (Array.isArray(data.monthlySeries) && data.monthlySeries.length) {
+      return seriesValueAt(data.monthlySeries, t * 12);
+    }
+    if (data.mode === "mc") return seriesValueAt(data.p50, t);
+    return seriesValueAt(data.baseSeries, t);
+  }
+
+  // Flatten whichever monthly record this run produced into balances by month.
+  function monthlyBalancesFrom(baseOut) {
+    if (!baseOut) return null;
+    const opening = num(baseOut.seriesYearly?.[0], 0);
+    if (Array.isArray(baseOut.seriesMonthly) && baseOut.seriesMonthly.length) {
+      const out = [opening];
+      baseOut.seriesMonthly.forEach(r => {
+        const m = Math.round(num(r?.month, 0));
+        if (m > 0) out[m] = num(r?.balance, 0);
+      });
+      return out;
+    }
+    if (Array.isArray(baseOut.scheduleMonthly) && baseOut.scheduleMonthly.length) {
+      const out = [opening];
+      baseOut.scheduleMonthly.forEach(r => {
+        const m = Math.round(num(r?.month, 0));
+        if (m > 0) out[m] = num(r?.ending, 0);
+      });
+      return out;
+    }
+    return null;
+  }
+
   function buildChartData({ baseOut, mcData, delaySeries, milestones, milestoneInfo, years, mode, phaseMarkers, phaseBands }) {
     const ui = appState.ui;
     const infl = ui.inflationRate / 100;
@@ -3707,11 +3766,18 @@
       p90: mcData ? mcData.p90.slice() : null,
       milestones,
       milestoneInfo,
+      // Only for deterministic runs: in Monte Carlo the plotted line is the P50
+      // median, and baseOut's monthly balances are a different series entirely.
+      // Attaching them would report a number the chart is not showing.
+      monthlySeries: isMC ? null : monthlyBalancesFrom(baseOut),
       phaseMarkers: phaseMarkers || [],
       phaseBands: phaseBands || [],
       legendModel
     };
     if (ui.realMode) {
+      if (data.monthlySeries) {
+        data.monthlySeries = data.monthlySeries.map((v, m) => discountValue(num(v, 0), m / 12, infl));
+      }
       data.baseSeries = discountSeries(data.baseSeries, infl);
       data.netContribSeries = discountSeries(data.netContribSeries, infl);
       data.growthSeries = discountSeries(data.growthSeries, infl);
@@ -4341,6 +4407,7 @@
 
     const W = size.width;
     const H = size.height;
+
     const pad = { l: 72, r: 24, t: 28, b: 44 };
     const plotW = W - pad.l - pad.r;
     const plotH = H - pad.t - pad.b;
@@ -4411,6 +4478,17 @@
     };
 
     ctx.clearRect(0,0,W,H);
+
+    /* Only the plot rectangle used to be painted, leaving the margins fully
+       transparent so the chart's appearance depended on whatever the browser
+       composited behind it. Painting the whole canvas makes it self-contained --
+       and removes the transparency that turns JPEG and PDF exports black at the
+       edges. */
+    const canvasBg = ctx.createLinearGradient(0, 0, 0, H);
+    canvasBg.addColorStop(0, "#fdfeff");
+    canvasBg.addColorStop(1, "#f4f8fd");
+    ctx.fillStyle = canvasBg;
+    ctx.fillRect(0, 0, W, H);
 
     const plotBg = ctx.createLinearGradient(0, pad.t, 0, H - pad.b);
     plotBg.addColorStop(0, palette.plotBgTop || "#ffffff");
@@ -4660,6 +4738,39 @@
       });
     }
 
+    /* Hover read-out: a guide line at the exact cursor position and a dot sitting
+       on the curve, so the figure in the tooltip is visibly tied to a point rather
+       than floating near it. Drawn last so nothing paints over it. */
+    const hoverT = appState.chart.activeT;
+    if (hoverT !== null && hoverT !== undefined
+        && hoverT >= startYear - 1e-9 && hoverT <= endYear + 1e-9
+        && !appState.chart.dragging) {
+      const hx = xForYear(hoverT);
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(37,99,235,0.5)";
+      ctx.beginPath();
+      ctx.moveTo(hx, pad.t);
+      ctx.lineTo(hx, H - pad.b);
+      ctx.stroke();
+      ctx.restore();
+
+      const hoverVal = balanceAtYears(data, hoverT);
+      if (Number.isFinite(hoverVal)) {
+        const hy = Math.max(pad.t, Math.min(H - pad.b, yFor(hoverVal)));
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(hx, hy, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff";
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = isMC ? (palette.mcMedian || "#1f5fe0") : (palette.totalLine || "#1f5fe0");
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     appState.chart.points = [];
     for (let y = 0; y <= yearsInt; y++) {
       appState.chart.points.push({
@@ -4734,28 +4845,38 @@
     const tooltip = $("chartTooltip");
     if (!tooltip || !appState.chart.lastData) return;
     const data = appState.chart.lastData;
-    const year = appState.chart.activeYear;
-    if (year === null || year === undefined) {
+    const t = appState.chart.activeT;
+    if (t === null || t === undefined) {
       tooltip.style.display = "none";
       return;
     }
 
-    const y = Math.max(0, Math.round(year));
-    if (y < 0) { tooltip.style.display = "none"; return; }
+    const y = Math.max(0, Math.round(t));
     const isMC = data.mode === "mc";
     const row = (k, v) => `<div class="ttRow"><span class="ttKey">${escapeHtml(k)}</span><span class="ttVal">${escapeHtml(v)}</span></div>`;
-    let html = `<div class="ttTitle">Year ${y}</div>`;
+
+    // Name the exact point being read, down to the month.
+    const totalMonths = Math.max(0, Math.round(t * 12));
+    const yearPart = Math.floor(totalMonths / 12);
+    const monthPart = totalMonths % 12;
+    const heading = monthPart === 0
+      ? `Year ${yearPart}`
+      : `Year ${yearPart} &middot; month ${monthPart}`;
+    let html = `<div class="ttTitle">${heading}</div>`;
+
     if (isMC && data.p10 && data.p50 && data.p90) {
-      html += row("P50", fmt0.format(data.p50[y] ?? 0));
-      html += row("P10", fmt0.format(data.p10[y] ?? 0));
-      html += row("P90", fmt0.format(data.p90[y] ?? 0));
+      html += row("P50 median", fmt2.format(seriesValueAt(data.p50, t) ?? 0));
+      html += row("P10 weak", fmt2.format(seriesValueAt(data.p10, t) ?? 0));
+      html += row("P90 strong", fmt2.format(seriesValueAt(data.p90, t) ?? 0));
     } else {
-      const total = data.baseSeries?.[y] ?? 0;
-      const net = data.netContribSeries?.[y] ?? total;
-      const growth = data.growthSeries?.[y] ?? (total - net);
-      html += row("Total Balance", fmt0.format(total));
-      html += row("Net Contributions", fmt0.format(net));
-      html += row("Growth", fmt0.format(growth));
+      const total = balanceAtYears(data, t) ?? 0;
+      const net = seriesValueAt(data.netContribSeries, t) ?? total;
+      html += row("Total balance", fmt2.format(total));
+      html += row("Net contributions", fmt2.format(net));
+      html += row("Growth", fmt2.format(total - net));
+    }
+    if (data.delaySeries) {
+      html += row("Delayed start", fmt2.format(seriesValueAt(data.delaySeries, t) ?? 0));
     }
 
     if (appState.chart.activeMilestoneYear === y && data.milestoneInfo) {
@@ -4788,12 +4909,19 @@
     const mx = appState.chart.hoverX ?? appState.chart.activeX ?? 0;
     const my = appState.chart.hoverY ?? 0;
     const wrap = $("chartWrap");
-    if (!wrap) return;
+    const canvasEl = $("chart");
+    if (!wrap || !canvasEl) return;
     const rect = wrap.getBoundingClientRect();
+    const cRect = canvasEl.getBoundingClientRect();
+    // Pointer coordinates are canvas-relative but the tooltip is placed against the
+    // wrapper's padding box. The canvas is inset inside it, so carry that gap over
+    // or the tooltip drifts from the cursor by the inset.
+    const insetX = cRect.left - rect.left;
+    const insetY = cRect.top - rect.top;
     const tipW = tooltip.offsetWidth || 240;
     const tipH = tooltip.offsetHeight || 120;
-    const offsetX = Math.min(rect.width - tipW - 10, Math.max(10, mx + 12));
-    const offsetY = Math.min(rect.height - tipH - 10, Math.max(10, my - 12));
+    const offsetX = Math.min(rect.width - tipW - 10, Math.max(10, mx + insetX + 12));
+    const offsetY = Math.min(rect.height - tipH - 10, Math.max(10, my + insetY - 12));
     tooltip.style.left = `${offsetX}px`;
     tooltip.style.top = `${offsetY}px`;
   }
@@ -4823,11 +4951,21 @@
       appState.chart.activeMilestoneYear = hit ? hit.year : null;
       const yrRaw = yearFromChartX(mx);
       if (yrRaw !== null) {
-        const yr = Math.max(0, Math.min(Math.round(yrRaw), appState.chart.xScale?.totalYears || 0));
-        appState.chart.activeYear = yr;
-        appState.chart.activeX = appState.chart.xScale ? appState.chart.xScale.padL + ((yr - appState.chart.xScale.startYear) / appState.chart.xScale.visibleYears) * appState.chart.xScale.plotW : mx;
+        const total = appState.chart.xScale?.totalYears || 0;
+        // Rounding to the nearest year gave only as many read-outs as there were
+        // years on the axis. Snap to the nearest month instead: the model steps
+        // monthly, so this lands on a real modelled point, and it keeps the label,
+        // the figures and the marker dot describing the same instant.
+        const raw = Math.max(0, Math.min(yrRaw, total));
+        const t = Math.max(0, Math.min(Math.round(raw * 12) / 12, total));
+        appState.chart.activeT = t;
+        appState.chart.activeYear = Math.round(t);
+        appState.chart.activeX = appState.chart.xScale
+          ? appState.chart.xScale.padL + ((t - appState.chart.xScale.startYear) / appState.chart.xScale.visibleYears) * appState.chart.xScale.plotW
+          : mx;
       }
       updateTooltip();
+      requestDraw();
     };
 
     const startDragAt = (mx, milestoneThreshold = 10, setPanCursor = true) => {
@@ -4902,8 +5040,10 @@
 
     const onLeave = () => {
       appState.chart.activeYear = null;
+      appState.chart.activeT = null;
       appState.chart.activeMilestoneYear = null;
       hideTooltip();
+      requestDraw();
     };
 
     const onDown = (e) => {
