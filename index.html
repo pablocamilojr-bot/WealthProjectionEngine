@@ -354,6 +354,50 @@
     color:#8798ac;
     font-size:11px;
   }
+  .syncNotice{
+    align-self:flex-start;
+    padding:7px 12px;
+    border-radius:999px;
+    font-size:11.5px;
+    font-weight:550;
+    color:#12376f;
+    background:rgba(37,99,235,0.1);
+    border:1px solid rgba(37,99,235,0.26);
+  }
+  .syncNotice[hidden]{ display:none; }
+  .incomeBlock{
+    margin-top:14px;
+    padding-top:12px;
+    border-top:1px solid var(--border);
+  }
+  .incomeHead{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    font-size:12.5px;
+    font-weight:650;
+    color:var(--label);
+  }
+  .incomeRow{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(96px,1fr));
+    gap:9px;
+    align-items:end;
+    margin-top:9px;
+    padding:10px;
+    border:1px solid var(--border);
+    border-radius:12px;
+    background:#ffffff;
+  }
+  .incomeRow .msLabel{
+    font-size:10px;
+    color:var(--muted);
+    margin-bottom:4px;
+  }
+  .incomeRow input,.incomeRow select{ padding:8px 10px; font-size:12px; }
+  .incomeRow .field[data-prefix] > input{ padding-left:22px; }
+  .incomeEmpty{ font-size:11.5px; color:var(--muted); margin-top:8px; }
   .headerTools{
     display:flex;
     align-items:center;
@@ -1235,6 +1279,8 @@
     <div class="badge" id="pill">-</div>
   </header>
 
+  <div class="syncNotice" id="syncNotice" role="status" aria-live="polite" hidden>Updated from another tab</div>
+
   <nav class="accountBar" id="accountBar" aria-label="Accounts"></nav>
 
   <div class="mainGrid">
@@ -1339,6 +1385,13 @@
           </div>
 
           <div>
+            <label>Annual fee on assets
+              <span class="field" data-suffix="%"><input id="feeRate" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="0" data-feature-num></span>
+            </label>
+            <div class="hint" id="feeHint">Expense ratios plus any advisory fee. Index funds are roughly 0.03-0.2%, active funds 0.5-1%, advisers often 1% on top.</div>
+          </div>
+
+          <div>
             <div class="inlineRow">
               <label class="toggle"><input id="goalToggle" type="checkbox" data-feature> Solve for contribution</label>
             </div>
@@ -1382,8 +1435,30 @@
               <label>Withdraw / month
                 <span class="field" data-prefix="$"><input id="withdrawMonthly" type="number" inputmode="decimal" min="0" step="100" value="4000"></span>
               </label>
+              <label>Spending strategy
+                <select id="withdrawMode">
+                  <option value="indexed">Amount, rising with inflation</option>
+                  <option value="fixed">Fixed amount</option>
+                  <option value="percent">Percent of balance</option>
+                </select>
+              </label>
+              <label>Percent of balance <span class="labelMeta">/ year</span>
+                <span class="field" data-suffix="%"><input id="withdrawPercent" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="4"></span>
+              </label>
+              <label>Spending ceiling <span class="labelMeta">0 = none</span>
+                <span class="field" data-suffix="%"><input id="withdrawCapPct" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0"></span>
+              </label>
             </div>
-            <label class="toggle" style="margin-top:10px;"><input id="withdrawInflationToggle" type="checkbox" checked> Raise withdrawals with inflation</label>
+            <div class="hint" id="withdrawModeHint"></div>
+
+            <div class="incomeBlock">
+              <div class="incomeHead">
+                <span>Other income</span>
+                <button id="addIncome" type="button" class="secondary">+ Add income</button>
+              </div>
+              <div class="hint">Pensions, annuities, rent, part-time work. This is spent before the portfolio is touched, so it lowers what has to be withdrawn.</div>
+              <div id="incomeList"></div>
+            </div>
           </div>
         </div>
       </details>
@@ -1408,6 +1483,10 @@
               </label>
             </div>
             <div class="hint">Defaults span a diversified equity portfolio (~16% annual volatility).</div>
+            <div class="inlineRow" style="margin-top:12px;">
+              <label class="toggle"><input id="fatTailsToggle" type="checkbox" checked> Bad years come in streaks</label>
+            </div>
+            <div class="hint">Turbulence persists in real markets instead of arriving one month at a time. Leaving this off treats every month as independent, which understates long bad runs.</div>
           </div>
 
           <div>
@@ -1466,6 +1545,18 @@
           <div>
             <div class="kpiLabel">Efficiency Score</div>
             <div class="kpiValue" id="kpiEfficiency">-</div>
+          </div>
+        </div>
+        <div class="kpi kpiWide" id="kpiFeesTile" style="display:none;">
+          <div>
+            <div class="kpiLabel">Fees Paid</div>
+            <div class="kpiValue" id="kpiFees">-</div>
+          </div>
+        </div>
+        <div class="kpi kpiWide" id="kpiIncomeTile" style="display:none;">
+          <div>
+            <div class="kpiLabel">Other Income</div>
+            <div class="kpiValue" id="kpiIncome">-</div>
           </div>
         </div>
         <div class="kpi kpiWide" id="kpiOppCostTile">
@@ -1614,9 +1705,18 @@
       retireAtYear: 20,
       withdrawMonthly: 4000,
       withdrawInflationToggle: true,
+      // "fixed" | "indexed" | "percent". withdrawInflationToggle is kept in step
+      // with this so existing plumbing kept working unchanged.
+      withdrawMode: "indexed",
+      withdrawPercent: 4,
+      withdrawCapPct: 0,
+      // Annual fee on assets. Defaults to zero so nobody's saved plan changes
+      // silently, but it is the assumption most often wrong by a wide margin.
+      feeRate: 0,
       delayEnabled: false,
       delayYears: 5,
       mcEnabled: false,
+      fatTails: true,
       // 10th/90th percentile annual returns. Around a 7% mean these imply ~16%
       // annual volatility, in line with a diversified equity portfolio.
       rateLow: -13.5,
@@ -1625,6 +1725,8 @@
     },
     milestonesEnabled: false,
     milestones: [],
+    // Pensions and other outside income, per account, alongside milestones.
+    incomes: [],
     scenarios: [],
     activeScenarioId: null,
     chainMode: false,
@@ -1838,6 +1940,10 @@
   const MAX_ACCOUNTS = 12;
   let shippedDefaults = null;
   let saveTimer = null;
+  // What this tab last put in storage, so it can tell its own writes apart from
+  // another tab's and skip pointless rewrites.
+  let lastWrittenPayload = null;
+  let pendingExternalState = false;
 
   /* One profile holds several accounts -- a 401k and a brokerage are separate pots
      that exist at the same time. They are distinct from scenarios (alternative
@@ -1850,6 +1956,7 @@
       ui: { ...appState.ui },
       milestonesEnabled: !!appState.milestonesEnabled,
       milestones: deepCopy(Array.isArray(appState.milestones) ? appState.milestones : []),
+      incomes: deepCopy(Array.isArray(appState.incomes) ? appState.incomes : []),
       scenarios: deepCopy(Array.isArray(appState.scenarios) ? appState.scenarios : []),
       activeScenarioId: appState.activeScenarioId ?? null,
       chainMode: !!appState.chainMode,
@@ -1871,6 +1978,8 @@
     appState.milestones = Array.isArray(src.milestones)
       ? deepCopy(src.milestones.filter(m => isPlainObject(m) && m.id)) : [];
     appState.milestonesEnabled = !!src.milestonesEnabled;
+    appState.incomes = Array.isArray(src.incomes)
+      ? deepCopy(src.incomes.filter(i => isPlainObject(i) && i.id)) : [];
     appState.scenarios = Array.isArray(src.scenarios)
       ? deepCopy(src.scenarios.filter(s => isPlainObject(s) && s.id && isPlainObject(s.inputs))).slice(0, MAX_SCENARIOS)
       : [];
@@ -1910,8 +2019,19 @@
 
   function writeState() {
     saveTimer = null;
+    /* The safety net for the whole scheme: while this tab is holding an update it
+       has not applied yet, its own state is known to be behind. Publishing it here
+       would put the stale copy back on top of the newer one -- exactly the
+       clobbering this is meant to end. Silence is correct until we catch up. */
+    if (pendingExternalState) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistableState()));
+      const payload = JSON.stringify(persistableState());
+      // Skipping no-op writes matters for more than efficiency: an identical write
+      // still notifies other tabs, and two tabs adopting each other's identical
+      // state would hand the update back and forth without end.
+      if (payload === lastWrittenPayload) return;
+      lastWrittenPayload = payload;
+      window.localStorage.setItem(STORAGE_KEY, payload);
     } catch (err) {
       /* Quota, private mode, or storage disabled -- nothing to do. */
     }
@@ -1939,6 +2059,9 @@
     let saved = null;
     try { saved = JSON.parse(raw); } catch (err) { clearStoredState(); return false; }
     if (!isPlainObject(saved)) { clearStoredState(); return false; }
+    // Whatever we just read is, by definition, already in storage. Recording it
+    // stops this tab from rebroadcasting a copy of what it was handed.
+    lastWrittenPayload = raw;
 
     // v1 stored a single plan at the top level. Rather than discarding that work,
     // it is lifted into the first account of the new shape.
@@ -1976,6 +2099,65 @@
     return true;
   }
 
+  /* Two tabs of the app used to fight over one storage key: whichever saved last
+     silently overwrote the other's accounts, and the loser only found out on
+     reload. They now converge instead -- when one tab saves, the others adopt that
+     state rather than continuing from a stale copy they will later write back. */
+  function isEditingAField() {
+    const el = document.activeElement;
+    if (!el) return false;
+    return /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+  }
+
+  /* Releasing the held update must not depend on a single event firing. blur and
+     focus are not reliably delivered in every embedding, and a dropped release
+     would leave this tab stale for good. A slow poll guarantees it lands; the
+     events below simply make it feel immediate. */
+  let pendingRetryTimer = null;
+  function schedulePendingAdopt() {
+    if (pendingRetryTimer !== null) return;
+    pendingRetryTimer = setInterval(() => {
+      if (!pendingExternalState || !isEditingAField()) {
+        clearInterval(pendingRetryTimer);
+        pendingRetryTimer = null;
+        if (pendingExternalState) adoptExternalState(null);
+      }
+    }, 700);
+  }
+
+  function adoptExternalState(rawPayload) {
+    pendingExternalState = false;
+    if (pendingRetryTimer !== null) { clearInterval(pendingRetryTimer); pendingRetryTimer = null; }
+    // Drop our own queued save; it was built from state that is now superseded.
+    if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+    // Treat the incoming payload as already written, so adopting it does not
+    // bounce straight back out as a fresh write.
+    if (typeof rawPayload === "string") lastWrittenPayload = rawPayload;
+
+    if (!restoreState()) return;
+
+    suppressEvents = true;
+    applyStateToUI();
+    suppressEvents = false;
+    updateUIState();
+    renderAccountTabs();
+    renderMilestones();
+    renderIncomes();
+    renderScenarios();
+    renderComparisonTable();
+    calculate();
+    showSyncNotice();
+  }
+
+  let syncNoticeTimer = null;
+  function showSyncNotice() {
+    const el = $("syncNotice");
+    if (!el) return;
+    el.hidden = false;
+    if (syncNoticeTimer !== null) clearTimeout(syncNoticeTimer);
+    syncNoticeTimer = setTimeout(() => { el.hidden = true; syncNoticeTimer = null; }, 4000);
+  }
+
   function resetToDefaults() {
     clearStoredState();
     if (shippedDefaults) {
@@ -1984,6 +2166,7 @@
       appState._simpleSnapshot = null;
     }
     appState.milestones = [];
+    appState.incomes = [];
     appState.milestonesEnabled = false;
     appState.scenarios = [];
     appState.activeScenarioId = null;
@@ -1997,6 +2180,7 @@
     updateUIState();
     renderAccountTabs();
     renderMilestones();
+    renderIncomes();
     renderScenarios();
     renderComparisonTable();
     calculate();
@@ -2019,6 +2203,7 @@
     updateUIState();
     renderAccountTabs();
     renderMilestones();
+    renderIncomes();
     renderScenarios();
     renderComparisonTable();
     calculate();
@@ -2032,7 +2217,7 @@
     // one, so adding "Brokerage" next to "401k" does not silently inherit its rate.
     const fresh = shippedDefaults ? deepCopy(shippedDefaults) : null;
     const state = fresh
-      ? { ui: fresh.ui, milestonesEnabled: false, milestones: [], scenarios: [], activeScenarioId: null, chainMode: false, simpleSnapshot: null }
+      ? { ui: fresh.ui, milestonesEnabled: false, milestones: [], incomes: [], scenarios: [], activeScenarioId: null, chainMode: false, simpleSnapshot: null }
       : captureAccountState();
     const acct = makeAccount(`Account ${appState.accounts.length + 1}`, state);
     appState.accounts.push(acct);
@@ -2045,6 +2230,7 @@
     updateUIState();
     renderAccountTabs();
     renderMilestones();
+    renderIncomes();
     renderScenarios();
     renderComparisonTable();
     calculate();
@@ -2069,6 +2255,7 @@
     updateUIState();
     renderAccountTabs();
     renderMilestones();
+    renderIncomes();
     renderScenarios();
     renderComparisonTable();
     calculate();
@@ -2107,10 +2294,16 @@
     ui.retireAge = $("retireAge")?.value ?? "";
     ui.retireAtYear = clamp(num($("retireAtYear")?.value), 0);
     ui.withdrawMonthly = clamp(num($("withdrawMonthly")?.value), 0);
-    ui.withdrawInflationToggle = !!$("withdrawInflationToggle")?.checked;
+    ui.withdrawMode = $("withdrawMode")?.value || "indexed";
+    // Kept in step with the mode so every existing call site keeps working.
+    ui.withdrawInflationToggle = (ui.withdrawMode === "indexed");
+    ui.withdrawPercent = clamp(num($("withdrawPercent")?.value, 4), 0, 100);
+    ui.withdrawCapPct = clamp(num($("withdrawCapPct")?.value, 0), 0, 100);
+    ui.feeRate = clamp(num($("feeRate")?.value, 0), 0, 100);
 
     ui.delayEnabled = !!$("delayToggle")?.checked;
     ui.delayYears = clamp(num($("delayYears")?.value), 1);
+    ui.fatTails = !!$("fatTailsToggle")?.checked;
     ui.mcEnabled = !!$("mcToggle")?.checked;
     ui.rateLow = num($("rateLow")?.value, 0);
     ui.rateHigh = num($("rateHigh")?.value, 0);
@@ -2145,10 +2338,14 @@
     if ($("retireAge")) $("retireAge").value = ui.retireAge;
     if ($("retireAtYear")) $("retireAtYear").value = ui.retireAtYear;
     if ($("withdrawMonthly")) $("withdrawMonthly").value = ui.withdrawMonthly;
-    if ($("withdrawInflationToggle")) $("withdrawInflationToggle").checked = ui.withdrawInflationToggle;
+    if ($("withdrawMode")) $("withdrawMode").value = ui.withdrawMode || "indexed";
+    if ($("withdrawPercent")) $("withdrawPercent").value = ui.withdrawPercent;
+    if ($("withdrawCapPct")) $("withdrawCapPct").value = ui.withdrawCapPct;
+    if ($("feeRate")) $("feeRate").value = ui.feeRate;
 
     if ($("delayToggle")) $("delayToggle").checked = ui.delayEnabled;
     if ($("delayYears")) $("delayYears").value = ui.delayYears;
+    if ($("fatTailsToggle")) $("fatTailsToggle").checked = ui.fatTails;
 
     if ($("mcToggle")) $("mcToggle").checked = ui.mcEnabled;
     if ($("rateLow")) $("rateLow").value = ui.rateLow;
@@ -2299,7 +2496,8 @@
 
     const disableWhenSimple = [
       "mcToggle","realToggle","inflationRate","taxToggle","taxRate","goalToggle","targetBalance","targetYears",
-      "retireToggle","startAge","retireAge","retireAtYear","withdrawMonthly","withdrawInflationToggle",
+      "retireToggle","startAge","retireAge","retireAtYear","withdrawMonthly","withdrawMode",
+      "withdrawPercent","withdrawCapPct","feeRate","fatTailsToggle",
       "delayToggle","delayYears","milestonesToggle","rateLow","rateHigh","contribIncrease","maxContrib"
     ];
     disableWhenSimple.forEach(id => {
@@ -2310,6 +2508,25 @@
 
     const msToggle = $("milestonesToggle");
     if (msToggle) msToggle.checked = appState.milestonesEnabled;
+
+    const wmHint = $("withdrawModeHint");
+    if (wmHint) {
+      const capNote = ui.withdrawCapPct > 0
+        ? ` Never more than ${ui.withdrawCapPct}% of the balance a year.`
+        : "";
+      if (ui.withdrawMode === "percent") {
+        wmHint.textContent = `Draws ${ui.withdrawPercent}% of whatever the balance is, so income moves with the market but the pot cannot run dry.`;
+      } else if (ui.withdrawMode === "fixed") {
+        wmHint.textContent = `The same cash every month, losing purchasing power to inflation.${capNote}`;
+      } else {
+        wmHint.textContent = `Holds spending power steady by rising with inflation.${capNote}`;
+      }
+    }
+    // Only the relevant amount field stays live for the chosen strategy.
+    const wpField = $("withdrawPercent");
+    if (wpField) wpField.disabled = ui.simpleMode || ui.withdrawMode !== "percent";
+    const wmField = $("withdrawMonthly");
+    if (wmField) wmField.disabled = ui.simpleMode || ui.withdrawMode === "percent";
 
     const combinedMc = $("combinedMcToggle");
     if (combinedMc) combinedMc.checked = !!ui.mcEnabled;
@@ -2455,9 +2672,15 @@
       retireAtYear: ui.retireAtYear,
       withdrawMonthly: ui.withdrawMonthly,
       withdrawInflationToggle: ui.withdrawInflationToggle,
+      withdrawMode: ui.withdrawMode,
+      withdrawPercent: ui.withdrawPercent,
+      withdrawCapPct: ui.withdrawCapPct,
+      feeRate: ui.feeRate,
+      fatTails: ui.fatTails,
       delayEnabled: ui.delayEnabled,
       delayYears: ui.delayYears,
       mcEnabled: ui.mcEnabled,
+      incomes: deepCopy(Array.isArray(appState.incomes) ? appState.incomes : []),
       milestones: includeMilestones ? deepCopy(appState.milestones) : []
     };
   }
@@ -2542,12 +2765,14 @@
         appState.ui.delayEnabled = !!inp.delayEnabled;
         appState.ui.delayYears = num(inp.delayYears, appState.ui.delayYears);
         appState.ui.mcEnabled = !!inp.mcEnabled;
+        appState.incomes = Array.isArray(inp.incomes) ? deepCopy(inp.incomes) : [];
         appState.milestones = Array.isArray(inp.milestones) ? deepCopy(inp.milestones) : [];
         appState.milestonesEnabled = (Array.isArray(inp.milestones) && inp.milestones.length > 0) ? true : appState.milestonesEnabled;
         applyStateToUI();
         suppressEvents = false;
         updateUIState();
         renderMilestones();
+        renderIncomes();
         calculate();
         renderScenarios();
       });
@@ -2613,6 +2838,7 @@
         withdrawMonthly: num(inp.withdrawMonthly, 0),
         inflationPct: inflPct,
         withdrawIndexToInflation: typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true,
+        ...modelExtrasFromSaved(inp),
         contribStartMonth: 1
       });
       const deposits = sumContribs(out.scheduleMonthly);
@@ -2915,6 +3141,71 @@
     });
   }
 
+  function renderIncomes() {
+    const listEl = $("incomeList");
+    if (!listEl) return;
+    listEl.innerHTML = "";
+    const list = Array.isArray(appState.incomes) ? appState.incomes : [];
+
+    if (!list.length) {
+      const empty = document.createElement("div");
+      empty.className = "incomeEmpty";
+      empty.textContent = "None yet. Without it the projection assumes the portfolio pays for everything.";
+      listEl.appendChild(empty);
+      return;
+    }
+
+    list.forEach(inc => {
+      const row = document.createElement("div");
+      row.className = "incomeRow";
+      row.innerHTML = `
+        <div>
+          <div class="msLabel">Source</div>
+          <input class="incLabel" type="text" placeholder="e.g. State pension" value="${escapeHtml(inc.label || "")}">
+        </div>
+        <div>
+          <div class="msLabel">Per month</div>
+          <span class="field" data-prefix="$"><input class="incAmount" type="number" inputmode="decimal" min="0" step="50" value="${Number.isFinite(inc.amount) ? inc.amount : 0}"></span>
+        </div>
+        <div>
+          <div class="msLabel">From year</div>
+          <input class="incStart" type="number" inputmode="decimal" min="0" step="1" value="${Number.isFinite(inc.startYear) ? inc.startYear : 0}">
+        </div>
+        <div>
+          <div class="msLabel">Until year</div>
+          <input class="incEnd" type="number" inputmode="decimal" min="0" step="1" placeholder="never" value="${num(inc.endYear, 0) > 0 ? inc.endYear : ""}">
+        </div>
+        <div>
+          <div class="msLabel">&nbsp;</div>
+          <label class="toggle"><input class="incIndexed" type="checkbox" ${inc.indexed !== false ? "checked" : ""}> Indexed</label>
+        </div>
+        <div>
+          <div class="msLabel">&nbsp;</div>
+          <button class="msRemove incRemove" type="button">Remove</button>
+        </div>
+      `;
+
+      const commit = () => {
+        inc.label = String(row.querySelector(".incLabel").value || "").slice(0, 40);
+        inc.amount = Math.max(0, num(row.querySelector(".incAmount").value, 0));
+        inc.startYear = Math.max(0, Math.round(num(row.querySelector(".incStart").value, 0)));
+        const endRaw = Math.round(num(row.querySelector(".incEnd").value, 0));
+        inc.endYear = endRaw > inc.startYear ? endRaw : 0;
+        inc.indexed = !!row.querySelector(".incIndexed").checked;
+        calculate();
+      };
+      row.querySelectorAll("input").forEach(el => el.addEventListener("change", commit));
+
+      row.querySelector(".incRemove").addEventListener("click", () => {
+        appState.incomes = appState.incomes.filter(x => x.id !== inc.id);
+        renderIncomes();
+        calculate();
+      });
+
+      listEl.appendChild(row);
+    });
+  }
+
   function updateMilestoneAttributes(viewId, attrs) {
     if (appState.chainMode && appState.scenarios.length > 0) {
       const parts = String(viewId || "").split("::");
@@ -3080,6 +3371,18 @@
       withdrawMonthly: Math.max(0, num(params.withdrawMonthly, 0)),
       inflationPct: Math.max(0, num(params.inflationPct, 0)),
       withdrawIndexToInflation: !!params.withdrawIndexToInflation,
+      // "fixed" holds the same cash amount, "indexed" raises it with inflation,
+      // "percent" takes a share of whatever the balance actually is.
+      withdrawMode: (params.withdrawMode === "percent" || params.withdrawMode === "fixed")
+        ? params.withdrawMode
+        : "indexed",
+      withdrawPercent: clamp(num(params.withdrawPercent, 4), 0, 100) / 100,
+      // Optional ceiling on the annual withdrawal rate. A real retiree cuts back
+      // in a bad decade; a fixed dollar draw does not, which overstates ruin.
+      withdrawCapPct: clamp(num(params.withdrawCapPct, 0), 0, 100) / 100,
+      // Annual fee on assets (expense ratio plus any advisory fee), charged monthly.
+      feePct: clamp(num(params.feePct, 0), 0, 100) / 100,
+      incomes: normalizeIncomes(params.incomes),
       startContribMonth: Number.isFinite(params.contribStartMonth)
         ? Math.max(1, Math.round(params.contribStartMonth))
         : 1,
@@ -3087,6 +3390,65 @@
       // far inflation has already compounded when withdrawals are indexed.
       timelineOffset: Math.max(0, Math.round(num(params.timelineOffsetYears, 0)))
     };
+  }
+
+  /* Model settings that must reach every run -- the live projection, the delayed
+     comparison, each saved scenario, each chained phase and every Monte Carlo
+     trial. Gathered in one place so a new setting cannot be wired into some paths
+     and quietly missed in others. Percentages are passed as percentages;
+     normalizeRunParams converts them. */
+  function modelExtrasFromUI(ui) {
+    return {
+      feePct: num(ui.feeRate, 0),
+      fatTails: !!ui.fatTails,
+      withdrawMode: ui.withdrawMode || "indexed",
+      withdrawPercent: num(ui.withdrawPercent, 4),
+      withdrawCapPct: num(ui.withdrawCapPct, 0),
+      incomes: deepCopy(Array.isArray(appState.incomes) ? appState.incomes : [])
+    };
+  }
+
+  // Same, for a stored scenario or account. Older records predate these fields,
+  // so each falls back to the behaviour that record was created under.
+  function modelExtrasFromSaved(inp) {
+    const src = inp || {};
+    return {
+      feePct: num(src.feeRate, 0),
+      fatTails: !!src.fatTails,
+      withdrawMode: src.withdrawMode || (src.withdrawInflationToggle === false ? "fixed" : "indexed"),
+      withdrawPercent: num(src.withdrawPercent, 4),
+      withdrawCapPct: num(src.withdrawCapPct, 0),
+      incomes: Array.isArray(src.incomes) ? deepCopy(src.incomes) : []
+    };
+  }
+
+  /* Income arriving from outside the portfolio -- a state or workplace pension, an
+     annuity, rent, part-time work. It reduces how much has to be drawn from the
+     balance, which is the single biggest reason a plan looks doomed here but is
+     fine in reality: almost nobody funds retirement from investments alone.
+
+     startYear/endYear are timeline years, matching Retire At Year. endYear of 0
+     means it never stops. */
+  function normalizeIncomes(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    list.forEach(src => {
+      if (!src) return;
+      const amount = Math.max(0, num(src.amount, 0));
+      if (!(amount > 0)) return;
+      const startYear = Math.max(0, Math.round(num(src.startYear, 0)));
+      const endRaw = Math.round(num(src.endYear, 0));
+      out.push({
+        id: src.id || uid("inc"),
+        label: String(src.label || "").trim().slice(0, 40),
+        amount,
+        startYear,
+        // Anything at or before the start means "runs forever".
+        endYear: (endRaw > startYear) ? endRaw : 0,
+        indexed: src.indexed !== false
+      });
+    });
+    return out;
   }
 
   function bucketMilestonesByMonth(milestones, monthsTotal) {
@@ -3120,6 +3482,25 @@
     let balance = p.principal;
     let currentContrib = p.contribAmt;
     let depletionMonth = null;
+    let totalFees = 0;
+    let totalIncome = 0;
+    const feeMonthly = p.feePct > 0 ? (p.feePct / 12) : 0;
+    const hasIncome = p.incomes.length > 0;
+
+    const incomeForYear = (yearIndex) => {
+      if (!hasIncome) return 0;
+      let total = 0;
+      for (let i = 0; i < p.incomes.length; i++) {
+        const inc = p.incomes[i];
+        if (yearIndex < inc.startYear) continue;
+        if (inc.endYear > 0 && yearIndex >= inc.endYear) continue;
+        const factor = (inc.indexed && p.inflationPct > 0)
+          ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
+          : 1;
+        total += inc.amount * factor;
+      }
+      return total;
+    };
 
     const applyEvents = (absMonth) => {
       const items = msByMonth[absMonth] || [];
@@ -3150,11 +3531,32 @@
         }
         balance += contribution;
       } else if (inRetirement) {
-        const inflFactor = (p.withdrawIndexToInflation && p.inflationPct > 0)
-          ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
-          : 1;
+        let target;
+        if (p.withdrawMode === "percent") {
+          // Take a share of what is actually there. Self-correcting: it falls in a
+          // bad market and can never exhaust the pot, at the cost of a variable income.
+          target = balance * (p.withdrawPercent / 12);
+        } else {
+          const inflFactor = (p.withdrawMode === "indexed" && p.inflationPct > 0)
+            ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
+            : 1;
+          target = p.withdrawMonthly * inflFactor;
+        }
+        // Pensions and the like are spent before the portfolio is touched, so they
+        // reduce the draw rather than adding to it. Floored at zero: a surplus is
+        // assumed spent or held elsewhere, never reinvested, which keeps this from
+        // flattering the outcome.
+        if (hasIncome) {
+          const income = incomeForYear(yearIndex);
+          totalIncome += income;
+          target = Math.max(0, target - income);
+        }
+        // Spending ceiling: hold the annual draw under a share of the balance.
+        if (p.withdrawCapPct > 0) {
+          target = Math.min(target, balance * (p.withdrawCapPct / 12));
+        }
         const pre = balance;
-        balance = Math.max(0, balance - p.withdrawMonthly * inflFactor);
+        balance = Math.max(0, balance - target);
         withdrawal = pre - balance;
         if (depletionMonth === null && balance <= 0) depletionMonth = m;
       }
@@ -3162,15 +3564,25 @@
       const event = applyEvents(m);
 
       let interest = balance * rateForMonth(m, yearIndex);
-      if (p.taxPct > 0) interest = interest * (1 - p.taxPct);
+      // Tax applies to gains only. Applying it to a negative month as well handed
+      // back a loss rebate, which flattered every downside path.
+      if (p.taxPct > 0 && interest > 0) interest = interest * (1 - p.taxPct);
       balance = Math.max(0, balance + interest);
 
+      // Fees come off the balance after growth, the way an expense ratio accrues.
+      let fee = 0;
+      if (feeMonthly > 0 && balance > 0) {
+        fee = balance * feeMonthly;
+        balance = Math.max(0, balance - fee);
+        totalFees += fee;
+      }
+
       if (observer && observer.onMonth) {
-        observer.onMonth({ month: m, yearIndex, contribution, withdrawal, interest, event, balance });
+        observer.onMonth({ month: m, yearIndex, contribution, withdrawal, interest, fee, event, balance });
       }
     }
 
-    return { balance, depletionMonth };
+    return { balance, depletionMonth, totalFees, totalIncome };
   }
 
   function computeDeterministic(params) {
@@ -3316,6 +3728,8 @@
       crossoverText,
       depletionYear,
       depletionText: depletionYear === null ? "" : `Funds exhausted in Year ${depletionYear}`,
+      totalFees: num(run.totalFees, 0),
+      totalIncome: num(run.totalIncome, 0),
       milestoneTotals: { in: milestoneIn, out: milestoneOut, net: milestoneNet }
     };
   }
@@ -3334,6 +3748,8 @@
     let monthOffset = 0;
     let combinedYears = 0;
     let milestoneTotals = { in: 0, out: 0, net: 0 };
+    let chainedFees = 0;
+    let chainedIncome = 0;
     let depletionYear = null;
 
     phases.forEach((p) => {
@@ -3366,6 +3782,7 @@
         // Inflation is a per-phase assumption, not the current view setting.
         inflationPct: num(inp.inflationRate, appState.ui.inflationRate) / 100,
         withdrawIndexToInflation: typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true,
+        ...modelExtrasFromSaved(inp),
         contribStartMonth: 1,
         timelineOffsetYears: Math.round(monthOffset / 12)
       });
@@ -3393,6 +3810,8 @@
       milestoneTotals.in += out.milestoneTotals?.in || 0;
       milestoneTotals.out += out.milestoneTotals?.out || 0;
       milestoneTotals.net += out.milestoneTotals?.net || 0;
+      chainedFees += num(out.totalFees, 0);
+      chainedIncome += num(out.totalIncome, 0);
 
       if (depletionYear === null && out.depletionYear !== null) {
         depletionYear = out.depletionYear + yearOffset;
@@ -3442,6 +3861,8 @@
       growthSeriesYearly,
       eventInfoYearly: combinedEventInfo,
       milestoneTotals,
+      totalFees: chainedFees,
+      totalIncome: chainedIncome,
       depletionYear,
       phaseMarkers,
       phaseBands
@@ -3578,6 +3999,87 @@
   // zero-width band reproduces the deterministic projection exactly and, with a
   // band, the mean of the trials still lands on the deterministic line.
   const Z90 = 1.2815515655446004;
+
+  /* Volatility regimes.
+     Plain lognormal treats every month as an independent draw, so a crash is
+     always a lone bad month and never a bad two years. Real markets cluster:
+     turbulence persists, which is what actually ruins a retirement drawdown.
+
+     This is a two-state Markov chain -- calm and turbulent -- with sticky
+     transitions. A turbulent spell lasts about five months on average and covers
+     roughly an eighth of the timeline. Mixing two volatilities also produces fat
+     tails without needing a heavier-tailed distribution.
+
+     The volatility multipliers are normalised so their unconditional mean square
+     is 1, and the drift is corrected so the expected return is unchanged. What is
+     NOT preserved is the total width: because the bear drift persists for months
+     at a time, it adds multi-year swings on top of month-to-month volatility.
+     Measured on the default band this widens the 10th percentile by about a
+     quarter. That is deliberate -- a Weak/Strong band describes how much a typical
+     month moves, and says nothing about a portfolio spending two years falling --
+     but it does mean the outcome range is wider than the band alone implies. */
+  const VOL_REGIME = {
+    // A turbulent spell now averages 1/0.05 = 20 months. An earlier version used
+    // five, and measurement showed it barely moved ruin at all: a five-month wobble
+    // is not what empties a portfolio, a bad couple of years is.
+    calmToTurbulent: 0.008,
+    turbulentToCalm: 0.05,
+    calmMult: 0.85,
+    turbulentMult: 1.9,
+    // Turbulence is not just louder, it is downward. Without this the model says
+    // bad periods are merely noisier, which is not what a bear market is.
+    //
+    // Expressed per unit of volatility, not as a fixed figure. A fixed drift gave
+    // bear markets to a portfolio with no volatility at all, which broke the rule
+    // that a zero-width band must reproduce the deterministic projection exactly.
+    // Scaling means no volatility implies no bear markets, and a narrow band gets
+    // proportionally milder ones.
+    bearDriftPerSigma: 0.35
+  };
+  const VOL_REGIME_STATE = (() => {
+    const pTurb = VOL_REGIME.calmToTurbulent / (VOL_REGIME.calmToTurbulent + VOL_REGIME.turbulentToCalm);
+    const meanSquare = (1 - pTurb) * VOL_REGIME.calmMult * VOL_REGIME.calmMult
+      + pTurb * VOL_REGIME.turbulentMult * VOL_REGIME.turbulentMult;
+    const norm = 1 / Math.sqrt(meanSquare);
+    return {
+      pTurb,
+      // Indexed by state: 0 calm, 1 turbulent. Lookups rather than objects keep the
+      // inner loop allocation-free across ~900k month-steps.
+      mult: [VOL_REGIME.calmMult * norm, VOL_REGIME.turbulentMult * norm]
+    };
+  })();
+
+  // Calm months carry exactly the offsetting drift, so switching clustering on
+  // redistributes returns without changing the expected outcome.
+  function regimeShiftsFor(sigmaLogM) {
+    const k = VOL_REGIME.bearDriftPerSigma * Math.max(0, num(sigmaLogM, 0));
+    if (!(k > 0)) return [0, 0];
+    const pTurb = VOL_REGIME_STATE.pTurb;
+    const calmShift = Math.log((1 - pTurb * Math.exp(-k)) / (1 - pTurb));
+    return [calmShift, -k];
+  }
+
+  function makeVolRegime(rng) {
+    let turbulent = false;
+    return function nextRegimeState() {
+      const u = rng();
+      if (turbulent) {
+        if (u < VOL_REGIME.turbulentToCalm) turbulent = false;
+      } else if (u < VOL_REGIME.calmToTurbulent) {
+        turbulent = true;
+      }
+      return turbulent ? 1 : 0;
+    };
+  }
+
+  /* One month's growth. Raising volatility also raises the expected value of a
+     lognormal, so the drift is pulled back by exactly the amount the regime adds.
+     Without this correction, turning clustering on would quietly raise returns
+     instead of only redistributing them. mult=1, shift=0 reproduces plain GBM. */
+  function monthlyGrowth(muLogM, sigmaLogM, mult, shift, z) {
+    const drift = muLogM + shift + (sigmaLogM * sigmaLogM / 2) * (1 - mult * mult);
+    return Math.exp(drift + sigmaLogM * mult * z) - 1;
+  }
   function lognormalMonthlyParams(aprPercent, rateLow, rateHigh) {
     const apr = num(aprPercent, 0) / 100;
     const meanGross = Math.pow(1 + apr / 12, 12);
@@ -3597,16 +4099,22 @@
     };
   }
 
-  function simulateTrial(params, nextNormal) {
+  function simulateTrial(params, nextNormal, nextVol) {
     const p = normalizeRunParams(params);
     const msByMonth = bucketMilestonesByMonth(params.milestones, p.monthsTotal);
     const { muLogM, sigmaLogM } = lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh);
 
     const seriesYearly = [];
+    const clustered = !!params.fatTails && typeof nextVol === "function";
 
     // A fresh draw every month, so a bad stretch early in retirement can sink a trial
     // that the same returns in a different order would not.
-    const rateForMonth = () => Math.exp(muLogM + sigmaLogM * nextNormal()) - 1;
+    const regimeShifts = regimeShiftsFor(sigmaLogM);
+    const rateForMonth = () => {
+      if (!clustered) return monthlyGrowth(muLogM, sigmaLogM, 1, 0, nextNormal());
+      const s = nextVol();
+      return monthlyGrowth(muLogM, sigmaLogM, VOL_REGIME_STATE.mult[s], regimeShifts[s], nextNormal());
+    };
 
     const run = walkMonths(p, msByMonth, rateForMonth, {
       onStart(balance) { seriesYearly[0] = balance; },
@@ -3648,12 +4156,13 @@
     const buckets = Array.from({ length: yearsInt + 1 }, () => []);
     const rng = mulberry32(MC_SEED);
     const nextNormal = makeNormal(rng);
+    const nextVol = makeVolRegime(rng);
 
     let ruinCount = 0;
     let endingSum = 0;
 
     for (let i = 0; i < runs; i++) {
-      const trial = simulateTrial(params, nextNormal);
+      const trial = simulateTrial(params, nextNormal, nextVol);
       const series = trial.seriesYearly;
       if (trial.depletionMonth !== null) ruinCount++;
       const ending = series[yearsInt] ?? series[series.length - 1] ?? 0;
@@ -4086,6 +4595,7 @@
         withdrawMonthly: ui.withdrawMonthly,
         inflationPct: ui.inflationRate / 100,
         withdrawIndexToInflation: ui.withdrawInflationToggle,
+        ...modelExtrasFromUI(ui),
         contribStartMonth: 1
       });
     }
@@ -4123,6 +4633,14 @@
           withdrawMonthly: ui.withdrawMonthly,
           inflationPct: ui.inflationRate / 100,
           withdrawIndexToInflation: ui.withdrawInflationToggle,
+          ...modelExtrasFromUI(ui),
+          // A pension starts when it starts. Waiting to invest does not postpone it,
+          // so it lands delayYears earlier in this shorter run, as retirement does.
+          incomes: (Array.isArray(appState.incomes) ? appState.incomes : []).map(inc => ({
+            ...inc,
+            startYear: Math.max(0, num(inc.startYear, 0) - delayYears),
+            endYear: num(inc.endYear, 0) > 0 ? Math.max(0, num(inc.endYear, 0) - delayYears) : 0
+          })),
           contribStartMonth: 1,
           timelineOffsetYears: delayYears
         });
@@ -4160,6 +4678,7 @@
         withdrawMonthly: ui.withdrawMonthly,
         inflationPct: ui.inflationRate / 100,
         withdrawIndexToInflation: ui.withdrawInflationToggle,
+        ...modelExtrasFromUI(ui),
         contribStartMonth: 1
       });
     }
@@ -4243,6 +4762,24 @@
         gIcon.classList.remove("neg");
       }
     }
+
+    // Fees are invisible by construction -- they never appear as a transaction --
+    // so the total is stated outright whenever any fee is charged.
+    const feesNominal = num(baseOut.totalFees, 0);
+    const feesDisplay = ui.realMode ? discountValue(feesNominal, years, ui.inflationRate / 100) : feesNominal;
+    const kFees = $("kpiFees");
+    const kFeesTile = $("kpiFeesTile");
+    if (kFeesTile) kFeesTile.style.display = feesNominal > 0 ? "flex" : "none";
+    if (kFees) kFees.textContent = feesNominal > 0 ? fmt0.format(feesDisplay) : "-";
+
+    // Stated outright so it is obvious how much of the plan the portfolio is
+    // actually carrying versus what arrives from elsewhere.
+    const incomeNominal = num(baseOut.totalIncome, 0);
+    const incomeDisplay = ui.realMode ? discountValue(incomeNominal, years, ui.inflationRate / 100) : incomeNominal;
+    const kInc = $("kpiIncome");
+    const kIncTile = $("kpiIncomeTile");
+    if (kIncTile) kIncTile.style.display = incomeNominal > 0 ? "flex" : "none";
+    if (kInc) kInc.textContent = incomeNominal > 0 ? fmt0.format(incomeDisplay) : "-";
 
     const kOpp = $("kpiOppCost");
     const kOppTile = $("kpiOppCostTile");
@@ -5724,6 +6261,8 @@
       withdrawMonthly: num(ui.withdrawMonthly, 0),
       inflationPct: num(ui.inflationRate, 0) / 100,
       withdrawIndexToInflation: typeof ui.withdrawInflationToggle === "boolean" ? ui.withdrawInflationToggle : true,
+      // Incomes sit beside the ui block in account state, not inside it.
+      ...modelExtrasFromSaved({ ...ui, incomes: acct.state?.incomes }),
       contribStartMonth: 1
     };
   }
@@ -5743,6 +6282,8 @@
     const perAccount = [];
     let ending = 0;
     let combinedPrincipal = 0;
+    let combinedFees = 0;
+    let combinedIncome = 0;
     let depletionYear = null;
 
     appState.accounts.forEach(acct => {
@@ -5751,6 +6292,8 @@
       perAccount.push({ id: acct.id, name: acct.name, out });
       ending += out.ending;
       combinedPrincipal += clamp(params.principal, 0);
+      combinedFees += num(out.totalFees, 0);
+      combinedIncome += num(out.totalIncome, 0);
       for (let y = 0; y <= maxYear; y++) {
         seriesYearly[y] += num(out.seriesYearly[y], 0);
         netContribSeriesYearly[y] += num(out.netContribSeriesYearly[y], 0);
@@ -5780,6 +6323,8 @@
       monthsTotal,
       ending,
       combinedPrincipal,
+      totalFees: combinedFees,
+      totalIncome: combinedIncome,
       seriesYearly,
       netContribSeriesYearly,
       growthSeriesYearly,
@@ -5817,31 +6362,47 @@
 
     const specs = appState.accounts.map(acct => {
       const params = accountRunParams(acct, years);
+      const log = lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh);
       return {
         params,
+        fatTails: !!params.fatTails,
         norm: normalizeRunParams(params),
         ms: bucketMilestonesByMonth(params.milestones, monthsTotal),
-        log: lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh)
+        log,
+        // Each account's bear drift scales with its own volatility.
+        shifts: regimeShiftsFor(log.sigmaLogM)
       };
     });
 
     const rng = mulberry32(MC_SEED);
     const nextNormal = makeNormal(rng);
+    const nextVol = makeVolRegime(rng);
     const buckets = Array.from({ length: yearsInt + 1 }, () => []);
     const shocks = new Float64Array(monthsTotal + 1);
+    const regimes = new Uint8Array(monthsTotal + 1);
     let ruinCount = 0;
     let endingSum = 0;
 
     for (let i = 0; i < runs; i++) {
-      // One market draw per month, reused by every account in this trial.
-      for (let m = 1; m <= monthsTotal; m++) shocks[m] = nextNormal();
+      // One market draw per month, reused by every account in this trial. The
+      // turbulent stretches are shared too -- there is only one market.
+      for (let m = 1; m <= monthsTotal; m++) {
+        shocks[m] = nextNormal();
+        regimes[m] = nextVol();
+      }
 
       const totals = new Array(yearsInt + 1).fill(0);
       let anyDepleted = false;
 
       specs.forEach(spec => {
         const yearly = [];
-        const rateForMonth = (m) => Math.exp(spec.log.muLogM + spec.log.sigmaLogM * shocks[m]) - 1;
+        const rateForMonth = (m) => monthlyGrowth(
+          spec.log.muLogM,
+          spec.log.sigmaLogM,
+          spec.fatTails ? VOL_REGIME_STATE.mult[regimes[m]] : 1,
+          spec.fatTails ? spec.shifts[regimes[m]] : 0,
+          shocks[m]
+        );
         const run = walkMonths(spec.norm, spec.ms, rateForMonth, {
           onStart(balance) { yearly[0] = balance; },
           onMonth(step) {
@@ -5909,7 +6470,8 @@
   function bindEvents() {
     const inputIds = [
       "principal","rateBase","contrib","contribIncrease","maxContrib","years","rateLow","rateHigh",
-      "inflationRate","taxRate","targetBalance","targetYears","retireAtYear","withdrawMonthly","delayYears","startAge","retireAge"
+      "inflationRate","taxRate","targetBalance","targetYears","retireAtYear","withdrawMonthly","delayYears","startAge","retireAge",
+      "feeRate","withdrawPercent","withdrawCapPct"
     ];
     inputIds.forEach(id => {
       const el = $(id);
@@ -5919,7 +6481,7 @@
       });
     });
 
-    const selectIds = ["contribFreq","horizonUnit"];
+    const selectIds = ["contribFreq","horizonUnit","withdrawMode"];
     selectIds.forEach(id => {
       const el = $(id);
       if (el) el.addEventListener("change", () => {
@@ -5930,7 +6492,7 @@
 
     const toggleIds = [
       "simpleToggle","realToggle","taxToggle","goalToggle","retireToggle","delayToggle",
-      "mcToggle","milestonesToggle","chainScenariosToggle","withdrawInflationToggle","logScaleToggle"
+      "mcToggle","milestonesToggle","chainScenariosToggle","logScaleToggle","fatTailsToggle"
     ];
     toggleIds.forEach(id => {
       const el = $(id);
@@ -5994,6 +6556,24 @@
         appState.milestonesEnabled = true;
         if ($("milestonesToggle")) $("milestonesToggle").checked = true;
         renderMilestones();
+        calculate();
+      });
+    }
+
+    const addIncomeBtn = $("addIncome");
+    if (addIncomeBtn) {
+      addIncomeBtn.addEventListener("click", () => {
+        appState.incomes = appState.incomes || [];
+        appState.incomes.push({
+          id: uid("inc"),
+          label: "",
+          amount: 1500,
+          // Defaults to the retirement year, which is when it usually matters.
+          startYear: Math.max(0, Math.round(num(appState.ui.retireAtYear, 0))),
+          endYear: 0,
+          indexed: true
+        });
+        renderIncomes();
         calculate();
       });
     }
@@ -6170,6 +6750,32 @@
       });
     }
 
+    /* Fires only in the OTHER documents sharing this origin, never in the one that
+       wrote. If someone is mid-edit here, the update waits rather than replacing
+       the field under their cursor; it lands as soon as they finish. */
+    window.addEventListener("storage", (e) => {
+      if (e.key !== STORAGE_KEY) return;
+      if (e.newValue === null) return;
+      if (e.newValue === lastWrittenPayload) return;
+      if (isEditingAField()) {
+        pendingExternalState = true;
+        schedulePendingAdopt();
+        return;
+      }
+      adoptExternalState(e.newValue);
+    });
+
+    // Deferred update lands when the edit finishes or the tab is returned to.
+    document.addEventListener("focusout", () => {
+      if (!pendingExternalState) return;
+      setTimeout(() => {
+        if (pendingExternalState && !isEditingAField()) adoptExternalState(null);
+      }, 0);
+    });
+    window.addEventListener("focus", () => {
+      if (pendingExternalState && !isEditingAField()) adoptExternalState(null);
+    });
+
     window.addEventListener("resize", () => requestDraw());
   }
 
@@ -6194,6 +6800,7 @@
     bindEvents();
     renderAccountTabs();
     renderMilestones();
+    renderIncomes();
     renderScenarios();
     if (restored) renderComparisonTable();
     calculate();
