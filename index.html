@@ -412,6 +412,125 @@
     color:#8798ac;
     font-size:11px;
   }
+  .sensHint{
+    margin-left:10px;
+    font-size:11px;
+    font-weight:600;
+    color:var(--brand-deep);
+    background:rgba(2,118,221,0.1);
+    border:1px solid rgba(2,118,221,0.24);
+    border-radius:999px;
+    padding:2px 9px;
+  }
+  .sensList{ margin:10px 0 12px; }
+  .sensRow{
+    display:grid;
+    grid-template-columns:minmax(120px,1.1fr) minmax(90px,2fr) auto;
+    gap:14px;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--border);
+  }
+  .sensRow:last-child{ border-bottom:none; }
+  .sensLabel{ font-size:12.5px; font-weight:600; color:var(--text); }
+  .sensNote{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .sensTrack{
+    position:relative;
+    height:20px;
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:6px;
+  }
+  .sensBar{
+    position:absolute;
+    top:3px;
+    bottom:3px;
+    border-radius:3px;
+    min-width:1px;
+  }
+  /* Downside left of the line, upside right, so the asymmetry is visible. */
+  .sensBar.low{ background:linear-gradient(90deg,rgba(220,38,38,0.28),rgba(220,38,38,0.6)); }
+  .sensBar.high{ background:linear-gradient(90deg,rgba(2,118,221,0.6),rgba(84,192,253,0.55)); }
+  .sensCenter{
+    position:absolute;
+    left:50%;
+    top:-2px;
+    bottom:-2px;
+    width:1px;
+    background:rgba(51,74,102,0.55);
+  }
+  .sensSwing{ text-align:right; white-space:nowrap; }
+  .sensSwingValue{
+    font-family:var(--display);
+    font-size:13px;
+    font-weight:650;
+    color:#17304b;
+    font-variant-numeric:tabular-nums;
+  }
+  @media (max-width:520px){
+    /* Label and figure share the top line, the bar spans underneath. The source
+       order is label/track/swing, so the swing needs placing explicitly or it
+       falls to a third row and reads as though it belonged to the next factor. */
+    .sensRow{ grid-template-columns:1fr auto; gap:6px 10px; padding:11px 0; }
+    .sensFactor{ grid-row:1; grid-column:1; }
+    .sensSwing{ grid-row:1; grid-column:2; align-self:center; }
+    .sensTrack{ grid-row:2; grid-column:1 / -1; }
+  }
+  .checksCard.hasFailure{
+    border-color:rgba(220,38,38,0.45);
+    background:linear-gradient(180deg,#fffafa,#fff5f5);
+  }
+  .checksTitle{
+    font-family:var(--display);
+    font-size:14px;
+    font-weight:700;
+    color:var(--label);
+  }
+  .checksSummary{
+    margin-left:10px;
+    font-size:11.5px;
+    font-weight:600;
+    padding:3px 9px;
+    border-radius:999px;
+    background:rgba(90,112,134,0.12);
+    color:var(--muted);
+  }
+  .checksSummary.isPass{
+    background:rgba(21,128,61,0.12);
+    border:1px solid rgba(21,128,61,0.28);
+    color:#15803d;
+  }
+  .checksSummary.isFail{
+    background:rgba(220,38,38,0.12);
+    border:1px solid rgba(220,38,38,0.32);
+    color:#b91c1c;
+  }
+  .checksList{ margin-top:10px; }
+  .checkRow{
+    display:grid;
+    grid-template-columns:18px 1fr auto;
+    gap:9px;
+    align-items:baseline;
+    padding:6px 2px;
+    border-bottom:1px solid var(--border);
+    font-size:12px;
+  }
+  .checkRow:last-child{ border-bottom:none; }
+  .checkMark{ color:#15803d; font-weight:700; }
+  .checkRow.isFail .checkMark{ color:#b91c1c; }
+  .checkRow.isFail .checkName{ color:#b91c1c; font-weight:600; }
+  .checkName{ color:var(--text); }
+  .checkDetail{
+    color:var(--muted);
+    font-size:11px;
+    font-variant-numeric:tabular-nums;
+    text-align:right;
+    white-space:nowrap;
+  }
+  @media (max-width:520px){
+    .checkRow{ grid-template-columns:18px 1fr; }
+    .checkDetail{ grid-column:2; text-align:left; white-space:normal; }
+  }
   .syncNotice{
     align-self:flex-start;
     padding:7px 12px;
@@ -749,6 +868,15 @@
     white-space:nowrap;
   }
   .breakdownShare{ font-size:11px; color:var(--muted); text-align:right; margin-top:3px; }
+  .afterTaxBar{
+    margin-top:10px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:13px;
+    background:var(--surface-2);
+  }
+  .afterTaxBar .hint{ margin-top:5px; }
+  .afterTaxBar[hidden]{ display:none; }
   .exportWrap{ position:relative; }
   .exportMenu{
     position:absolute;
@@ -912,6 +1040,44 @@
     box-shadow:var(--shadow-edge),var(--shadow-soft);
   }
   canvas{ width:100%; height:100%; display:block; cursor:crosshair; }
+  /* Reachable by keyboard, so it has to show where the focus is. The ring sits on
+     the wrapper rather than the canvas because an outline on a canvas that is
+     re-rendered at device-pixel scale ends up hairline-thin on some displays. */
+  #chartWrap:has(canvas:focus-visible){
+    outline:2px solid var(--brand, #0276dd);
+    outline-offset:2px;
+  }
+  canvas:focus{ outline:none; }
+  /* Present to assistive technology, absent from the page. Not display:none --
+     that would take it out of the accessibility tree along with everything else. */
+  .srOnly{
+    position:absolute;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:-1px;
+    overflow:hidden;
+    clip:rect(0 0 0 0);
+    clip-path:inset(50%);
+    white-space:nowrap;
+    border:0;
+  }
+  .chartKeysHint{
+    margin-top:8px;
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:center;
+  }
+  .chartKeysHint kbd{
+    font-family:inherit;
+    font-size:10.5px;
+    padding:1px 5px;
+    border:1px solid var(--border);
+    border-bottom-width:2px;
+    border-radius:5px;
+    background:#fff;
+    color:#3d5875;
+  }
   .chartLegend{
     display:flex;
     align-items:center;
@@ -1421,7 +1587,23 @@
           <div class="chartSubtitle" id="breakdownSubtitle">Combined position across every account.</div>
         </div>
       </div>
+      <div class="afterTaxBar" id="householdBar">
+        <label class="toggle"><input id="householdToggle" type="checkbox"> Spend from these accounts in order</label>
+        <div class="inputGrid" id="householdFields" style="gap:10px; margin-top:10px;" hidden>
+          <label>Monthly spending
+            <span class="field" data-prefix="$"><input id="householdMonthly" type="number" inputmode="decimal" min="0" step="50" value="4000"></span>
+          </label>
+          <label>Starting in year
+            <span class="field" data-suffix="yr"><input id="householdRetireYear" type="number" inputmode="decimal" min="0" step="1" value="20"></span>
+          </label>
+        </div>
+        <div class="hint" id="householdHint"></div>
+      </div>
       <div id="breakdownList"></div>
+      <div class="afterTaxBar" id="afterTaxBar" hidden>
+        <label class="toggle"><input id="afterTaxToggle" type="checkbox"> Show what you get to keep</label>
+        <div class="hint" id="afterTaxHint"></div>
+      </div>
       <div class="hint" id="breakdownNote"></div>
       <div class="inlineRow" style="margin-top:14px;">
         <label class="toggle"><input id="combinedMcToggle" type="checkbox"> Model market swings</label>
@@ -1488,11 +1670,29 @@
           </div>
 
           <div>
+            <label>Tax treatment of this account
+              <select id="taxType" data-feature-sel>
+                <option value="taxable">Taxable &mdash; brokerage, savings</option>
+                <option value="traditional">Pre-tax &mdash; 401k, 403b, traditional IRA</option>
+                <option value="roth">Roth &mdash; already taxed</option>
+              </select>
+            </label>
+            <div class="hint" id="taxTypeHint"></div>
+          </div>
+
+          <div id="taxableOnlyRow">
             <div class="inlineRow">
               <label class="toggle"><input id="taxToggle" type="checkbox" data-feature> Tax on gains</label>
               <span class="field" data-suffix="%"><input id="taxRate" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="25"></span>
             </div>
             <div class="hint" id="taxHint"></div>
+          </div>
+
+          <div id="retireTaxRow" hidden>
+            <label>Your tax rate in retirement
+              <span class="field" data-suffix="%"><input id="retireTaxRate" type="number" inputmode="decimal" min="0" max="95" step="0.1" value="22"></span>
+            </label>
+            <div class="hint">One flat rate on money coming out. Not brackets, RMDs or state tax &mdash; enough to size the gap, not to file with.</div>
           </div>
         </div>
       </details>
@@ -1621,6 +1821,32 @@
 
           <div>
             <div class="inlineRow">
+              <label class="toggle"><input id="glideToggle" type="checkbox" data-feature> Shift to safer holdings over time</label>
+            </div>
+            <div class="hint" id="glideHint"></div>
+            <div id="glideWrap" hidden>
+              <div style="margin-top:8px;">
+                <label>Return by then
+                  <span class="field" data-suffix="%"><input id="glideEndRate" type="number" inputmode="decimal" min="0" step="0.1" value="5"></span>
+                </label>
+              </div>
+              <div class="hint">The move is gradual and straight-line, not a switch thrown on one day.</div>
+              <div id="glideBandWrap">
+                <div class="inputGrid" style="gap:10px; margin-top:10px;">
+                  <label>Weak year by then <span class="labelMeta">10th %</span>
+                    <span class="field" data-suffix="%"><input id="glideEndLow" type="number" inputmode="decimal" min="-90" step="0.1" value="-5"></span>
+                  </label>
+                  <label>Strong year by then <span class="labelMeta">90th %</span>
+                    <span class="field" data-suffix="%"><input id="glideEndHigh" type="number" inputmode="decimal" min="-90" step="0.1" value="15"></span>
+                  </label>
+                </div>
+                <div class="hint">Defaults describe a roughly 40/60 stock and bond mix (~8% annual volatility).</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="inlineRow">
               <label class="toggle"><input id="delayToggle" type="checkbox" data-feature> Cost of waiting</label>
               <span class="field" data-suffix="yr"><input id="delayYears" type="number" inputmode="decimal" min="1" step="1" value="5"></span>
             </div>
@@ -1647,7 +1873,11 @@
         <div class="badge" id="realModeBadge">Live</div>
         <button id="mobileResultsToggle" class="secondary mobileResultsToggle" type="button" aria-expanded="false">Details</button>
       </div>
-      <div class="bigNumber" id="projectedValue" aria-live="polite" aria-atomic="true">-</div>
+      <!-- Deliberately not a live region: this number counts up over ~460ms, which
+           would push a stream of meaningless intermediate figures at a screen reader.
+           The settled value is announced once through #resultReadout instead. -->
+      <div class="bigNumber" id="projectedValue">-</div>
+      <div id="resultReadout" class="srOnly" role="status" aria-live="polite" aria-atomic="true"></div>
       <div class="growthRow">
         <span id="growthIcon">&#8599;</span>
         <span id="growthPercent">-</span>
@@ -1741,9 +1971,12 @@
       </div>
     </div>
     <div class="chartWrap" id="chartWrap">
-      <canvas id="chart"></canvas>
+      <canvas id="chart" tabindex="0" role="img" aria-describedby="chartKeysHelp"></canvas>
       <div id="chartTooltip" class="chartTooltip" style="display:none;"></div>
     </div>
+    <p id="chartKeysHelp" class="srOnly">Arrow keys move along the projection a month at a time. Hold shift for a year, page up and page down for five years, home and end for either end. Press m for the next marker, shift m for the previous one, escape to stop reading.</p>
+    <div id="chartReadout" class="srOnly" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div class="chartKeysHint" id="chartKeysHint" hidden>Arrow keys to read the line &middot; shift for a year &middot; <kbd>m</kbd> for markers &middot; <kbd>Esc</kbd> to stop</div>
     <div id="chartLegend" class="chartLegend"></div>
     <div id="dataTableWrap" class="dataTableWrap" hidden>
       <div class="dataTableHead">
@@ -1782,6 +2015,30 @@
     </div>
     <div class="chainNotice" id="chainNotice" hidden></div>
   </section>
+
+  <section class="card sensCard" id="sensCard">
+    <details id="sensDetails">
+      <summary>
+        <span class="checksTitle">What actually moves the answer</span>
+        <span class="sensHint">sensitivity</span>
+      </summary>
+      <div class="hint" id="sensNote"></div>
+      <div id="sensList" class="sensList"></div>
+      <div class="hint">Ranges reflect how uncertain each input genuinely is, not a flat percentage, so the ordering depends on those ranges. Each row states the one it used.</div>
+    </details>
+  </section>
+
+  <section class="card checksCard" id="checksCard">
+    <details id="checksDetails">
+      <summary>
+        <span class="checksTitle">Model checks</span>
+        <span class="checksSummary" id="checksSummary">running...</span>
+      </summary>
+      <div class="hint">Properties the engine must satisfy whatever the inputs are, re-run against the live code each time the page loads. They test the model, not the plan on screen.</div>
+      <div id="checksList" class="checksList"></div>
+      <button id="rerunChecks" type="button" class="secondary" style="margin-top:12px;">Run again</button>
+    </details>
+  </section>
 </div>
 
 <script>
@@ -1811,48 +2068,121 @@
   const MC_SEED = 13579;
   const MC_INPUT_DEBOUNCE_MS = 140;
 
+  /* ---- Field registry ----------------------------------------------------
+     Every plan setting is declared once, here. The places that used to repeat
+     each one -- the defaults, reading the DOM, writing the DOM, the simple-mode
+     snapshot and restore, the saved-scenario record, and the settings that must
+     reach every run -- are all generated from this table. Adding a setting is
+     one row, and a setting cannot now be wired into some paths and missed in
+     others, which is exactly how a saved scenario used to lose its fee and
+     withdrawal strategy on the way back in.
+
+       key       property on appState.ui
+       el        element id it is bound to; defaults to key
+       kind      "bool" | "num" | "str" | "raw"
+       def       default value, and the fallback used everywhere
+       readDef   fallback when parsing the field's own DOM value (default 0)
+       min,max   clamp bounds; omit both to leave a number unclamped
+       scenario  false to keep it out of saved scenarios (default true)
+       keep      on scenario load a missing value falls back to the CURRENT
+                 value rather than the default, for records written before the
+                 field existed
+       simple    value simple mode forces, and which is restored afterwards
+       extra     carry into every run: true, or { as, scale } where the engine
+                 spells it differently
+       derive    computed from other fields rather than read from an element  */
+  const UI_FIELDS = [
+    { key: "principal",       kind: "num",  def: 100000, min: 0 },
+    { key: "rateBase",        kind: "num",  def: 7 },
+    { key: "contrib",         kind: "num",  def: 500, min: 0 },
+    { key: "contribFreq",     kind: "str",  def: "monthly" },
+    { key: "contribIncrease", kind: "num",  def: 0, min: 0 },
+    { key: "maxContrib",      kind: "num",  def: 0, min: 0 },
+    { key: "horizonUnit",     kind: "str",  def: "years" },
+    { key: "yearsRaw",        el: "years",  kind: "num", def: 30, min: 0,
+      // Older records stored the resolved horizon as `years` instead.
+      fromScenario: (inp, cur) => num(inp.yearsRaw, num(inp.years, 0)) },
+    { key: "simpleMode",      el: "simpleToggle", kind: "bool", def: false, scenario: false },
+
+    { key: "realMode",        el: "realToggle",  kind: "bool", def: false, simple: false },
+    { key: "inflationRate",   kind: "num",  def: 2.5, min: 0, keep: true },
+    { key: "taxEnabled",      el: "taxToggle",   kind: "bool", def: false, simple: false },
+    { key: "taxRate",         kind: "num",  def: 25, min: 0 },
+    { key: "taxType",         kind: "str",  def: "taxable", simple: "taxable", extra: true },
+    { key: "retireTaxRate",   kind: "num",  def: 22, min: 0, max: 95,
+      extra: { as: "retireTaxPct", scale: 1 / 100, def: 0 } },
+    { key: "goalSeekOn",      el: "goalToggle",  kind: "bool", def: false, simple: false },
+    { key: "targetBalance",   kind: "num",  def: 1000000, min: 0, keep: true },
+    { key: "targetYears",     kind: "num",  def: 30, min: 1, keep: true },
+
+    { key: "retireEnabled",   el: "retireToggle", kind: "bool", def: false, simple: false },
+    { key: "startAge",        kind: "raw",  def: "" },
+    { key: "retireAge",       kind: "raw",  def: "" },
+    { key: "retireAtYear",    kind: "num",  def: 20, min: 0, keep: true },
+    { key: "withdrawMonthly", kind: "num",  def: 4000, min: 0, keep: true },
+    { key: "withdrawMode",    kind: "str",  def: "indexed", extra: true },
+    // Kept in step with the mode so every existing call site keeps working.
+    { key: "withdrawInflationToggle", kind: "bool", def: true,
+      derive: (ui) => ui.withdrawMode === "indexed",
+      fromScenario: (inp) => typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true },
+    { key: "withdrawPercent", kind: "num",  def: 4, readDef: 4, min: 0, max: 100, extra: true },
+    { key: "withdrawCapPct",  kind: "num",  def: 0, min: 0, max: 100, extra: true },
+    { key: "feeRate",         kind: "num",  def: 0, min: 0, max: 100, extra: { as: "feePct" } },
+
+    { key: "delayEnabled",    el: "delayToggle", kind: "bool", def: false, simple: false },
+    { key: "delayYears",      kind: "num",  def: 5, min: 1, keep: true },
+    { key: "fatTails",        el: "fatTailsToggle", kind: "bool", def: true, extra: true },
+    { key: "mcEnabled",       el: "mcToggle",  kind: "bool", def: false, simple: false },
+    { key: "rateLow",         kind: "num",  def: -13.5 },
+    { key: "rateHigh",        kind: "num",  def: 27.5 },
+    { key: "glideEnabled",    el: "glideToggle", kind: "bool", def: false, simple: false, extra: true },
+    { key: "glideEndRate",    kind: "num",  def: 5, min: 0, extra: { def: 0 } },
+    { key: "glideEndLow",     kind: "num",  def: -5, extra: { def: 0 } },
+    { key: "glideEndHigh",    kind: "num",  def: 15, extra: { def: 0 } },
+    { key: "logScale",        el: "logScaleToggle", kind: "bool", def: false, scenario: false }
+  ];
+
+  const fieldEl = (f) => f.el || f.key;
+  const FIELDS_WITH_ELEMENTS = UI_FIELDS.filter(f => !f.derive);
+  const SCENARIO_FIELDS = UI_FIELDS.filter(f => f.scenario !== false);
+  const SIMPLE_FIELDS = UI_FIELDS.filter(f => Object.prototype.hasOwnProperty.call(f, "simple"));
+  const EXTRA_FIELDS = UI_FIELDS.filter(f => f.extra);
+
+  // Parse one field's raw DOM value under its own rules.
+  function coerceField(f, raw) {
+    if (f.kind === "bool") return !!raw;
+    if (f.kind === "raw")  return raw ?? f.def;
+    if (f.kind === "str")  return raw || f.def;
+    const n = num(raw, Object.prototype.hasOwnProperty.call(f, "readDef") ? f.readDef : 0);
+    const hasBounds = Object.prototype.hasOwnProperty.call(f, "min") || Object.prototype.hasOwnProperty.call(f, "max");
+    return hasBounds ? clamp(n, f.min ?? 0, f.max ?? Infinity) : n;
+  }
+
+  // Read a stored value (scenario input or account ui) under the same rules.
+  function fieldFromStored(f, src, current) {
+    if (f.fromScenario) return f.fromScenario(src, current);
+    const raw = src[f.key];
+    if (f.kind === "bool") return !!raw;
+    if (f.kind === "raw")  return raw ?? f.def;
+    if (f.kind === "str")  return raw || f.def;
+    return num(raw, f.keep ? current : f.def);
+  }
+
+  /* Notes on a few of the defaults above, which used to sit beside them here:
+     withdrawMode is "fixed" | "indexed" | "percent", and withdrawInflationToggle
+     is kept in step with it so existing plumbing kept working unchanged. feeRate
+     defaults to zero so nobody's saved plan changed silently when fees arrived,
+     though it is the assumption most often wrong by a wide margin. rateLow and
+     rateHigh are 10th/90th percentile annual returns; around a 7% mean they imply
+     roughly 16% annual volatility, in line with a diversified equity portfolio. */
+  function defaultUI() {
+    const ui = {};
+    UI_FIELDS.forEach(f => { ui[f.key] = f.def; });
+    return ui;
+  }
+
   const appState = {
-    ui: {
-      principal: 100000,
-      rateBase: 7,
-      contrib: 500,
-      contribFreq: "monthly",
-      contribIncrease: 0,
-      maxContrib: 0,
-      horizonUnit: "years",
-      yearsRaw: 30,
-      simpleMode: false,
-      realMode: false,
-      inflationRate: 2.5,
-      taxEnabled: false,
-      taxRate: 25,
-      goalSeekOn: false,
-      targetBalance: 1000000,
-      targetYears: 30,
-      retireEnabled: false,
-      startAge: "",
-      retireAge: "",
-      retireAtYear: 20,
-      withdrawMonthly: 4000,
-      withdrawInflationToggle: true,
-      // "fixed" | "indexed" | "percent". withdrawInflationToggle is kept in step
-      // with this so existing plumbing kept working unchanged.
-      withdrawMode: "indexed",
-      withdrawPercent: 4,
-      withdrawCapPct: 0,
-      // Annual fee on assets. Defaults to zero so nobody's saved plan changes
-      // silently, but it is the assumption most often wrong by a wide margin.
-      feeRate: 0,
-      delayEnabled: false,
-      delayYears: 5,
-      mcEnabled: false,
-      fatTails: true,
-      // 10th/90th percentile annual returns. Around a 7% mean these imply ~16%
-      // annual volatility, in line with a diversified equity portfolio.
-      rateLow: -13.5,
-      rateHigh: 27.5,
-      logScale: false
-    },
+    ui: defaultUI(),
     milestonesEnabled: false,
     milestones: [],
     // Pensions and other outside income, per account, alongside milestones.
@@ -1904,6 +2234,9 @@
       projectedRaf: null,
       projectedValue: null
     },
+    /* Household-level, not per-account: one person spending from several pots.
+       Lives beside `accounts` rather than inside any of them. */
+    household: { enabled: false, monthly: 4000, retireAtYear: 20 },
     _simpleSnapshot: null,
     _milestoneViewCache: []
   };
@@ -1973,6 +2306,17 @@
     }
     if (appState.anim) appState.anim.projectedRaf = null;
   }
+  /* Announced once, when the figure has settled, with the heading for context --
+     "$1,425,193" on its own tells a screen-reader user nothing about what it is.
+     Every path out of animateProjectedValue calls this exactly once. */
+  function announceProjectedValue(targetValue) {
+    const out = $("resultReadout");
+    if (!out) return;
+    if (!Number.isFinite(targetValue)) { out.textContent = ""; return; }
+    const heading = ($("projectedTitle")?.textContent || "Projected net worth").trim().replace(/[:.]$/, "");
+    out.textContent = `${heading}: ${fmt0.format(targetValue)}`;
+  }
+
   function animateProjectedValue(targetValue) {
     const el = $("projectedValue");
     if (!el) return;
@@ -1980,10 +2324,12 @@
       cancelProjectedAnimation();
       el.textContent = "-";
       if (appState.anim) appState.anim.projectedValue = null;
+      announceProjectedValue(null);
       return;
     }
     if (!appState.anim) {
       el.textContent = fmt0.format(targetValue);
+      announceProjectedValue(targetValue);
       return;
     }
     const startValue = Number.isFinite(appState.anim.projectedValue) ? appState.anim.projectedValue : targetValue;
@@ -1992,6 +2338,7 @@
       cancelProjectedAnimation();
       el.textContent = fmt0.format(targetValue);
       appState.anim.projectedValue = targetValue;
+      announceProjectedValue(targetValue);
       return;
     }
 
@@ -2011,6 +2358,7 @@
         appState.anim.projectedRaf = null;
         appState.anim.projectedValue = targetValue;
         el.textContent = fmt0.format(targetValue);
+        announceProjectedValue(targetValue);
       }
     };
     appState.anim.projectedRaf = requestAnimationFrame(step);
@@ -2143,7 +2491,8 @@
     return {
       v: STORAGE_VERSION,
       accounts: appState.accounts.map(a => ({ id: a.id, name: a.name, state: a.state })),
-      activeAccountId: appState.activeAccountId
+      activeAccountId: appState.activeAccountId,
+      household: deepCopy(appState.household)
     };
   }
 
@@ -2222,6 +2571,15 @@
     if (!accounts.length) { clearStoredState(); return false; }
 
     appState.accounts = accounts;
+    // Records written before the household drawdown existed simply have no entry,
+    // and the default leaves it switched off.
+    if (isPlainObject(saved.household)) {
+      appState.household = {
+        enabled: !!saved.household.enabled,
+        monthly: Math.max(0, num(saved.household.monthly, 4000)),
+        retireAtYear: Math.max(0, Math.round(num(saved.household.retireAtYear, 20)))
+      };
+    }
     const wantsAll = saved.activeAccountId === ALL_ACCOUNTS && accounts.length > 0;
     const known = accounts.some(a => a.id === saved.activeAccountId);
     appState.activeAccountId = wantsAll ? ALL_ACCOUNTS : (known ? saved.activeAccountId : accounts[0].id);
@@ -2401,43 +2759,15 @@
 
   function readUIIntoState() {
     const ui = appState.ui;
-    ui.principal = clamp(num($("principal")?.value), 0);
-    ui.rateBase = num($("rateBase")?.value, 0);
-    ui.contrib = clamp(num($("contrib")?.value), 0);
-    ui.contribFreq = $("contribFreq")?.value || "monthly";
-    ui.contribIncrease = clamp(num($("contribIncrease")?.value), 0);
-    ui.maxContrib = clamp(num($("maxContrib")?.value), 0);
-    ui.horizonUnit = $("horizonUnit")?.value || "years";
-    ui.yearsRaw = clamp(num($("years")?.value), 0);
-    ui.simpleMode = !!$("simpleToggle")?.checked;
-
-    ui.realMode = !!$("realToggle")?.checked;
-    ui.inflationRate = clamp(num($("inflationRate")?.value), 0);
-    ui.taxEnabled = !!$("taxToggle")?.checked;
-    ui.taxRate = clamp(num($("taxRate")?.value), 0);
-    ui.goalSeekOn = !!$("goalToggle")?.checked;
-    ui.targetBalance = clamp(num($("targetBalance")?.value), 0);
-    ui.targetYears = clamp(num($("targetYears")?.value), 1);
-
-    ui.retireEnabled = !!$("retireToggle")?.checked;
-    ui.startAge = $("startAge")?.value ?? "";
-    ui.retireAge = $("retireAge")?.value ?? "";
-    ui.retireAtYear = clamp(num($("retireAtYear")?.value), 0);
-    ui.withdrawMonthly = clamp(num($("withdrawMonthly")?.value), 0);
-    ui.withdrawMode = $("withdrawMode")?.value || "indexed";
-    // Kept in step with the mode so every existing call site keeps working.
-    ui.withdrawInflationToggle = (ui.withdrawMode === "indexed");
-    ui.withdrawPercent = clamp(num($("withdrawPercent")?.value, 4), 0, 100);
-    ui.withdrawCapPct = clamp(num($("withdrawCapPct")?.value, 0), 0, 100);
-    ui.feeRate = clamp(num($("feeRate")?.value, 0), 0, 100);
-
-    ui.delayEnabled = !!$("delayToggle")?.checked;
-    ui.delayYears = clamp(num($("delayYears")?.value), 1);
-    ui.fatTails = !!$("fatTailsToggle")?.checked;
-    ui.mcEnabled = !!$("mcToggle")?.checked;
-    ui.rateLow = num($("rateLow")?.value, 0);
-    ui.rateHigh = num($("rateHigh")?.value, 0);
-    ui.logScale = !!$("logScaleToggle")?.checked;
+    FIELDS_WITH_ELEMENTS.forEach(f => {
+      const el = $(fieldEl(f));
+      // A missing element leaves the field alone rather than resetting it, which
+      // is what the long hand-written version did via its optional chaining.
+      const raw = (f.kind === "bool") ? !!el?.checked : el?.value;
+      ui[f.key] = coerceField(f, raw);
+    });
+    // Derived fields read the values just captured, so they run afterwards.
+    UI_FIELDS.forEach(f => { if (f.derive) ui[f.key] = f.derive(ui); });
 
     appState.milestonesEnabled = !!$("milestonesToggle")?.checked;
     appState.chainMode = !!$("chainScenariosToggle")?.checked;
@@ -2445,77 +2775,56 @@
 
   function applyStateToUI() {
     const ui = appState.ui;
-    if ($("principal")) $("principal").value = ui.principal;
-    if ($("rateBase")) $("rateBase").value = ui.rateBase;
-    if ($("contrib")) $("contrib").value = ui.contrib;
-    if ($("contribFreq")) $("contribFreq").value = ui.contribFreq;
-    if ($("contribIncrease")) $("contribIncrease").value = ui.contribIncrease;
-    if ($("maxContrib")) $("maxContrib").value = ui.maxContrib;
-    if ($("horizonUnit")) $("horizonUnit").value = ui.horizonUnit;
-    if ($("years")) $("years").value = ui.yearsRaw;
-    if ($("simpleToggle")) $("simpleToggle").checked = ui.simpleMode;
-
-    if ($("realToggle")) $("realToggle").checked = ui.realMode;
-    if ($("inflationRate")) $("inflationRate").value = ui.inflationRate;
-    if ($("taxToggle")) $("taxToggle").checked = ui.taxEnabled;
-    if ($("taxRate")) $("taxRate").value = ui.taxRate;
-    if ($("goalToggle")) $("goalToggle").checked = ui.goalSeekOn;
-    if ($("targetBalance")) $("targetBalance").value = ui.targetBalance;
-    if ($("targetYears")) $("targetYears").value = ui.targetYears;
-
-    if ($("retireToggle")) $("retireToggle").checked = ui.retireEnabled;
-    if ($("startAge")) $("startAge").value = ui.startAge;
-    if ($("retireAge")) $("retireAge").value = ui.retireAge;
-    if ($("retireAtYear")) $("retireAtYear").value = ui.retireAtYear;
-    if ($("withdrawMonthly")) $("withdrawMonthly").value = ui.withdrawMonthly;
-    if ($("withdrawMode")) $("withdrawMode").value = ui.withdrawMode || "indexed";
-    if ($("withdrawPercent")) $("withdrawPercent").value = ui.withdrawPercent;
-    if ($("withdrawCapPct")) $("withdrawCapPct").value = ui.withdrawCapPct;
-    if ($("feeRate")) $("feeRate").value = ui.feeRate;
-
-    if ($("delayToggle")) $("delayToggle").checked = ui.delayEnabled;
-    if ($("delayYears")) $("delayYears").value = ui.delayYears;
-    if ($("fatTailsToggle")) $("fatTailsToggle").checked = ui.fatTails;
-
-    if ($("mcToggle")) $("mcToggle").checked = ui.mcEnabled;
-    if ($("rateLow")) $("rateLow").value = ui.rateLow;
-    if ($("rateHigh")) $("rateHigh").value = ui.rateHigh;
-    if ($("logScaleToggle")) $("logScaleToggle").checked = ui.logScale;
+    FIELDS_WITH_ELEMENTS.forEach(f => {
+      const el = $(fieldEl(f));
+      if (!el) return;
+      const v = ui[f.key];
+      if (f.kind === "bool") { el.checked = !!v; return; }
+      if (f.kind === "raw")  { el.value = v ?? f.def; return; }
+      // Falling back to the declared default covers a state object written before
+      // the field existed, which is what the per-line fallbacks used to do.
+      el.value = (f.kind === "str") ? (v || f.def) : num(v, f.def);
+    });
 
     if ($("milestonesToggle")) $("milestonesToggle").checked = appState.milestonesEnabled;
     if ($("chainScenariosToggle")) $("chainScenariosToggle").checked = appState.chainMode;
   }
 
+  /* Simple mode puts the optional complications aside and gives them back when it
+     is switched off. Which fields those are comes from the registry's `simple`
+     entries, so a new optional feature joins in by declaring itself rather than by
+     being remembered here.
+
+     The read and write either side of the swap are what make it stick. Reading
+     first means the snapshot holds what is genuinely on screen rather than
+     whatever state the last recalculation left. Writing afterwards pushes the
+     change out to the controls -- without it, the caller's own readUIIntoState()
+     reads the still-checked boxes straight back over everything set here, which
+     is why simple mode used to grey the controls out while the projection quietly
+     went on applying tax, inflation, retirement and the rest.
+
+     The snapshot is persisted with the account, so turning simple mode on, closing
+     the tab and turning it off again still gives the settings back. */
   function handleSimpleModeToggle(enable) {
+    readUIIntoState();
+
     if (enable && !appState._simpleSnapshot) {
-      appState._simpleSnapshot = {
-        realMode: appState.ui.realMode,
-        taxEnabled: appState.ui.taxEnabled,
-        goalSeekOn: appState.ui.goalSeekOn,
-        retireEnabled: appState.ui.retireEnabled,
-        delayEnabled: appState.ui.delayEnabled,
-        mcEnabled: appState.ui.mcEnabled,
-        milestonesEnabled: appState.milestonesEnabled
-      };
-      appState.ui.realMode = false;
-      appState.ui.taxEnabled = false;
-      appState.ui.goalSeekOn = false;
-      appState.ui.retireEnabled = false;
-      appState.ui.delayEnabled = false;
-      appState.ui.mcEnabled = false;
+      const snap = { milestonesEnabled: appState.milestonesEnabled };
+      SIMPLE_FIELDS.forEach(f => { snap[f.key] = appState.ui[f.key]; });
+      appState._simpleSnapshot = snap;
+      SIMPLE_FIELDS.forEach(f => { appState.ui[f.key] = f.simple; });
       appState.milestonesEnabled = false;
     }
     if (!enable && appState._simpleSnapshot) {
       const s = appState._simpleSnapshot;
-      appState.ui.realMode = s.realMode;
-      appState.ui.taxEnabled = s.taxEnabled;
-      appState.ui.goalSeekOn = s.goalSeekOn;
-      appState.ui.retireEnabled = s.retireEnabled;
-      appState.ui.delayEnabled = s.delayEnabled;
-      appState.ui.mcEnabled = s.mcEnabled;
+      SIMPLE_FIELDS.forEach(f => {
+        appState.ui[f.key] = (f.kind === "bool") ? !!s[f.key] : (s[f.key] ?? f.def);
+      });
       appState.milestonesEnabled = s.milestonesEnabled;
       appState._simpleSnapshot = null;
     }
+
+    applyStateToUI();
   }
 
   function updateUIState() {
@@ -2589,10 +2898,48 @@
       }
     }
 
+    /* The three treatments need different fields, and showing all of them at once
+       invites the mistake this feature exists to prevent -- taxing a Roth, or
+       applying an annual drag to a 401k that does not pay one. */
+    const taxType = ui.taxType || "taxable";
+    const taxableRow = $("taxableOnlyRow");
+    if (taxableRow) taxableRow.hidden = (taxType !== "taxable");
+    const retireTaxRow = $("retireTaxRow");
+    if (retireTaxRow) retireTaxRow.hidden = (taxType !== "traditional");
+
     const taxHint = $("taxHint");
     if (taxHint) {
       taxHint.textContent = ui.taxEnabled ? `Applying ${ui.taxRate}% tax drag on gains.` : "";
     }
+    const taxTypeHint = $("taxTypeHint");
+    if (taxTypeHint) {
+      taxTypeHint.textContent = taxType === "traditional"
+        ? "Grows untaxed, then taxed on the way out. The balance shown is pre-tax."
+        : taxType === "roth"
+          ? "No tax on growth and none on withdrawal. The balance is yours to spend."
+          : "Gains are taxed as they arise, so nothing is owed at the end.";
+    }
+    /* The glide has no date of its own -- it lands on the retirement year, or on the
+       end of the horizon when there is no retirement to aim at. Say which, because
+       the same setting means two different things depending on the rest of the plan. */
+    const glideWrap = $("glideWrap");
+    if (glideWrap) glideWrap.hidden = !ui.glideEnabled;
+    // The end-of-glide band only feeds the simulation, so it follows the same rule
+    // as the band above it and stays out of sight when nothing reads it.
+    const glideBandWrap = $("glideBandWrap");
+    if (glideBandWrap) glideBandWrap.style.display = ui.mcEnabled ? "block" : "none";
+    const glideHint = $("glideHint");
+    if (glideHint) {
+      if (!ui.glideEnabled) {
+        glideHint.textContent = "Holds one mix for the whole plan, which assumes the same risk at 70 as at 30.";
+      } else {
+        const target = (ui.retireEnabled && ui.retireAtYear > 0)
+          ? `Year ${Math.round(ui.retireAtYear)}, when withdrawals begin`
+          : `Year ${Math.round(getActiveYears())}, the end of the horizon`;
+        glideHint.textContent = `Moves from ${num(ui.rateBase, 0)}% toward ${num(ui.glideEndRate, 0)}% by ${target}.`;
+      }
+    }
+
     const delayHint = $("delayHint");
     if (delayHint) {
       const dy = ui.delayYears;
@@ -2625,10 +2972,12 @@
     }
 
     const disableWhenSimple = [
-      "mcToggle","realToggle","inflationRate","taxToggle","taxRate","goalToggle","targetBalance","targetYears",
+      "mcToggle","realToggle","inflationRate","taxToggle","taxRate","taxType","retireTaxRate",
+      "goalToggle","targetBalance","targetYears",
       "retireToggle","startAge","retireAge","retireAtYear","withdrawMonthly","withdrawMode",
       "withdrawPercent","withdrawCapPct","feeRate","fatTailsToggle",
-      "delayToggle","delayYears","milestonesToggle","rateLow","rateHigh","contribIncrease","maxContrib"
+      "delayToggle","delayYears","milestonesToggle","rateLow","rateHigh","contribIncrease","maxContrib",
+      "glideToggle","glideEndRate","glideEndLow","glideEndHigh"
     ];
     disableWhenSimple.forEach(id => {
       const el = $(id);
@@ -2673,7 +3022,11 @@
       const switches = group.querySelectorAll("input[data-feature]:checked").length;
       const numbers = Array.from(group.querySelectorAll("input[data-feature-num]"))
         .filter(el => Math.abs(num(el.value, 0)) > 0).length;
-      const total = switches + numbers;
+      // A dropdown counts as live once it is off its first option, which is the
+      // do-nothing default in every case.
+      const picks = Array.from(group.querySelectorAll("select[data-feature-sel]"))
+        .filter(el => el.value !== el.options[0]?.value).length;
+      const total = switches + numbers + picks;
       badge.textContent = total > 0 ? `${total} on` : "";
       badge.hidden = total === 0;
     });
@@ -2777,42 +3130,25 @@
 
   function getScenarioInputsFromState(includeMilestones = true) {
     const ui = appState.ui;
-    return {
-      principal: ui.principal,
-      rateBase: ui.rateBase,
-      rateLow: ui.rateLow,
-      rateHigh: ui.rateHigh,
-      contrib: ui.contrib,
-      contribFreq: ui.contribFreq,
-      contribIncrease: ui.contribIncrease,
-      maxContrib: ui.maxContrib,
-      yearsRaw: ui.yearsRaw,
-      horizonUnit: ui.horizonUnit,
-      years: getActiveYears(),
-      taxEnabled: ui.taxEnabled,
-      taxRate: ui.taxRate,
-      realMode: ui.realMode,
-      inflationRate: ui.inflationRate,
-      goalSeekOn: ui.goalSeekOn,
-      targetBalance: ui.targetBalance,
-      targetYears: ui.targetYears,
-      retireEnabled: ui.retireEnabled,
-      startAge: ui.startAge,
-      retireAge: ui.retireAge,
-      retireAtYear: ui.retireAtYear,
-      withdrawMonthly: ui.withdrawMonthly,
-      withdrawInflationToggle: ui.withdrawInflationToggle,
-      withdrawMode: ui.withdrawMode,
-      withdrawPercent: ui.withdrawPercent,
-      withdrawCapPct: ui.withdrawCapPct,
-      feeRate: ui.feeRate,
-      fatTails: ui.fatTails,
-      delayEnabled: ui.delayEnabled,
-      delayYears: ui.delayYears,
-      mcEnabled: ui.mcEnabled,
-      incomes: deepCopy(Array.isArray(appState.incomes) ? appState.incomes : []),
-      milestones: includeMilestones ? deepCopy(appState.milestones) : []
-    };
+    const inputs = {};
+    SCENARIO_FIELDS.forEach(f => { inputs[f.key] = ui[f.key]; });
+    // The resolved horizon is stored alongside yearsRaw for older readers.
+    inputs.years = getActiveYears();
+    inputs.incomes = deepCopy(Array.isArray(appState.incomes) ? appState.incomes : []);
+    inputs.milestones = includeMilestones ? deepCopy(appState.milestones) : [];
+    return inputs;
+  }
+
+  // The exact inverse of the above. Generated from the same list, so a scenario
+  // can no longer come back missing settings it was saved with.
+  function applyScenarioInputsToState(inp) {
+    const ui = appState.ui;
+    SCENARIO_FIELDS.forEach(f => { ui[f.key] = fieldFromStored(f, inp, ui[f.key]); });
+    appState.incomes = Array.isArray(inp.incomes) ? deepCopy(inp.incomes) : [];
+    appState.milestones = Array.isArray(inp.milestones) ? deepCopy(inp.milestones) : [];
+    appState.milestonesEnabled = (Array.isArray(inp.milestones) && inp.milestones.length > 0)
+      ? true
+      : appState.milestonesEnabled;
   }
 
   function saveScenario() {
@@ -2868,36 +3204,7 @@
         if (isClose) return;
         appState.activeScenarioId = s.id;
         suppressEvents = true;
-        const inp = s.inputs || {};
-        appState.ui.principal = num(inp.principal, 0);
-        appState.ui.rateBase = num(inp.rateBase, 0);
-        appState.ui.rateLow = num(inp.rateLow, 0);
-        appState.ui.rateHigh = num(inp.rateHigh, 0);
-        appState.ui.contrib = num(inp.contrib, 0);
-        appState.ui.contribFreq = inp.contribFreq || "monthly";
-        appState.ui.contribIncrease = num(inp.contribIncrease, 0);
-        appState.ui.maxContrib = num(inp.maxContrib, 0);
-        appState.ui.yearsRaw = num(inp.yearsRaw, num(inp.years, 0));
-        appState.ui.horizonUnit = inp.horizonUnit || "years";
-        appState.ui.taxEnabled = !!inp.taxEnabled;
-        appState.ui.taxRate = num(inp.taxRate, 0);
-        appState.ui.realMode = !!inp.realMode;
-        appState.ui.inflationRate = num(inp.inflationRate, appState.ui.inflationRate);
-        appState.ui.goalSeekOn = !!inp.goalSeekOn;
-        appState.ui.targetBalance = num(inp.targetBalance, appState.ui.targetBalance);
-        appState.ui.targetYears = num(inp.targetYears, appState.ui.targetYears);
-        appState.ui.retireEnabled = !!inp.retireEnabled;
-        appState.ui.startAge = inp.startAge ?? "";
-        appState.ui.retireAge = inp.retireAge ?? "";
-        appState.ui.retireAtYear = num(inp.retireAtYear, appState.ui.retireAtYear);
-        appState.ui.withdrawMonthly = num(inp.withdrawMonthly, appState.ui.withdrawMonthly);
-        appState.ui.withdrawInflationToggle = typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true;
-        appState.ui.delayEnabled = !!inp.delayEnabled;
-        appState.ui.delayYears = num(inp.delayYears, appState.ui.delayYears);
-        appState.ui.mcEnabled = !!inp.mcEnabled;
-        appState.incomes = Array.isArray(inp.incomes) ? deepCopy(inp.incomes) : [];
-        appState.milestones = Array.isArray(inp.milestones) ? deepCopy(inp.milestones) : [];
-        appState.milestonesEnabled = (Array.isArray(inp.milestones) && inp.milestones.length > 0) ? true : appState.milestonesEnabled;
+        applyScenarioInputsToState(s.inputs || {});
         applyStateToUI();
         suppressEvents = false;
         updateUIState();
@@ -3486,18 +3793,61 @@
     const years = clamp(params.years, 0);
     const contribIncreasePct = num(params.contribIncreasePct, 0);
     const maxMonthlyContrib = num(params.maxMonthlyContrib, 0);
+
+    /* Tax treatment of the pot. Three shapes, and they differ in WHEN tax is paid,
+       which is the whole point of holding more than one kind:
+         taxable     -- gains are taxed as they arise, nothing is owed at the end.
+         traditional -- nothing is taxed on the way up, everything is taxed on the
+                        way out, so the balance is in pre-tax dollars.
+         roth        -- taxed before it ever arrived; untouched from here on.
+       Anything unrecognised, including records written before this existed, falls
+       back to taxable so old saves keep the behaviour they were created under. */
+    const taxType = (params.taxType === "traditional" || params.taxType === "roth")
+      ? params.taxType
+      : "taxable";
+    const taxPct = clamp(num(params.taxPct, 0), 0, 1);
+    // Capped below 1 because a 100% rate would make the gross-up divide by zero.
+    const retireTaxPct = clamp(num(params.retireTaxPct, 0), 0, 0.95);
+    const deferredTaxPct = (taxType === "traditional") ? retireTaxPct : 0;
+
+    const monthsTotal = Math.max(0, Math.round(years * 12));
+    const retireEnabled = !!params.retireEnabled;
+    const retireAtYear = Math.max(0, Math.round(num(params.retireAtYear, 0)));
+
+    /* Nobody holds one portfolio unchanged for forty years. The glide moves the
+       mix from what it is today toward something steadier, arriving when the money
+       starts being spent -- or at the end of the horizon if there is no retirement
+       in the plan. Tying it to the retirement year rather than a separate date
+       keeps it from drifting out of step with the rest of the plan. */
+    const glideEnabled = !!params.glideEnabled;
+    const glideEndMonth = glideEnabled
+      ? Math.max(1, (retireEnabled && retireAtYear > 0) ? retireAtYear * 12 : monthsTotal)
+      : 0;
+
     return {
+      glideEnabled,
+      glideEndMonth,
+      glideEndRate: num(params.glideEndRate, 0),
+      glideEndLow: num(params.glideEndLow, num(params.glideEndRate, 0)),
+      glideEndHigh: num(params.glideEndHigh, num(params.glideEndRate, 0)),
+      taxType,
+      retireTaxPct,
+      deferredTaxPct,
+      // Only a taxable account pays as it goes; the other two compound untouched.
+      gainsTaxPct: (taxType === "taxable") ? taxPct : 0,
+      // To spend a dollar from a pre-tax account you must withdraw more than one.
+      withdrawGrossUp: (deferredTaxPct > 0) ? (1 / (1 - deferredTaxPct)) : 1,
       principal: clamp(params.principal, 0),
       contribAmt: clamp(params.contribAmt, 0),
       contribFreq: params.contribFreq,
       years,
-      monthsTotal: Math.max(0, Math.round(years * 12)),
+      monthsTotal,
       contribIncreasePct,
       annualStepFactor: 1 + contribIncreasePct,
       monthlyCap: (maxMonthlyContrib > 0) ? maxMonthlyContrib : Infinity,
-      taxPct: clamp(num(params.taxPct, 0), 0, 1),
-      retireEnabled: !!params.retireEnabled,
-      retireAtYear: Math.max(0, Math.round(num(params.retireAtYear, 0))),
+      taxPct,
+      retireEnabled,
+      retireAtYear,
       withdrawMonthly: Math.max(0, num(params.withdrawMonthly, 0)),
       inflationPct: Math.max(0, num(params.inflationPct, 0)),
       withdrawIndexToInflation: !!params.withdrawIndexToInflation,
@@ -3527,29 +3877,47 @@
      trial. Gathered in one place so a new setting cannot be wired into some paths
      and quietly missed in others. Percentages are passed as percentages;
      normalizeRunParams converts them. */
+  // One field's contribution to a run's parameters, under the name and units the
+  // engine uses. Shared by the live and saved variants so they cannot disagree.
+  function extraValue(f, src) {
+    const spec = (f.extra === true) ? {} : f.extra;
+    const name = spec.as || f.key;
+    const raw = src[f.key];
+    let v;
+    if (f.kind === "bool") v = !!raw;
+    else if (f.kind === "str") v = raw || f.def;
+    // Some of these deliberately fall back to zero rather than to the field's
+    // default: an old record with no glide should mean "no glide", not "the
+    // default glide". `def` on the extra spec says so where it differs.
+    else v = num(raw, Object.prototype.hasOwnProperty.call(spec, "def") ? spec.def : f.def);
+    if (spec.scale && typeof v === "number") v *= spec.scale;
+    return [name, v];
+  }
+
   function modelExtrasFromUI(ui) {
-    return {
-      feePct: num(ui.feeRate, 0),
-      fatTails: !!ui.fatTails,
-      withdrawMode: ui.withdrawMode || "indexed",
-      withdrawPercent: num(ui.withdrawPercent, 4),
-      withdrawCapPct: num(ui.withdrawCapPct, 0),
-      incomes: deepCopy(Array.isArray(appState.incomes) ? appState.incomes : [])
-    };
+    const out = {};
+    EXTRA_FIELDS.forEach(f => { const [k, v] = extraValue(f, ui); out[k] = v; });
+    out.incomes = deepCopy(Array.isArray(appState.incomes) ? appState.incomes : []);
+    return out;
   }
 
   // Same, for a stored scenario or account. Older records predate these fields,
   // so each falls back to the behaviour that record was created under.
+  /* Same set of settings, read from a stored record instead of the live UI.
+     Records written before tax treatment or the glide existed simply lack those
+     keys, and each field's declared fallback is what makes them behave the way
+     they did when they were saved. */
   function modelExtrasFromSaved(inp) {
     const src = inp || {};
-    return {
-      feePct: num(src.feeRate, 0),
-      fatTails: !!src.fatTails,
-      withdrawMode: src.withdrawMode || (src.withdrawInflationToggle === false ? "fixed" : "indexed"),
-      withdrawPercent: num(src.withdrawPercent, 4),
-      withdrawCapPct: num(src.withdrawCapPct, 0),
-      incomes: Array.isArray(src.incomes) ? deepCopy(src.incomes) : []
-    };
+    const out = {};
+    EXTRA_FIELDS.forEach(f => { const [k, v] = extraValue(f, src); out[k] = v; });
+    // One pre-registry record shape: withdrawMode did not exist and the strategy
+    // was carried by a boolean instead.
+    if (!src.withdrawMode) {
+      out.withdrawMode = (src.withdrawInflationToggle === false) ? "fixed" : "indexed";
+    }
+    out.incomes = Array.isArray(src.incomes) ? deepCopy(src.incomes) : [];
+    return out;
   }
 
   /* Income arriving from outside the portfolio -- a state or workplace pension, an
@@ -3606,14 +3974,23 @@
     return byMonth;
   }
 
-  // `rateForMonth(month, yearIndex)` supplies the growth rate; `observer` receives
-  // the opening balance and then one record per month.
-  function walkMonths(p, msByMonth, rateForMonth, observer) {
+  /* `rateForMonth(month, yearIndex)` supplies the growth rate; `observer` receives
+     the opening balance and then one record per month.
+
+     `household` is optional. When present the account stops deciding its own
+     withdrawal and instead takes whatever the household still needs that month,
+     reporting back what it managed to deliver. Because the draw order is strictly
+     sequential -- taxable, then pre-tax, then Roth -- the accounts can be run one
+     after another in that order rather than interleaved month by month: an earlier
+     account's capacity never depends on a later one. That is what keeps this to a
+     single engine instead of a second, parallel one. */
+  function walkMonths(p, msByMonth, rateForMonth, observer, household) {
     let balance = p.principal;
     let currentContrib = p.contribAmt;
     let depletionMonth = null;
     let totalFees = 0;
     let totalIncome = 0;
+    let totalWithdrawalTax = 0;
     const feeMonthly = p.feePct > 0 ? (p.feePct / 12) : 0;
     const hasIncome = p.incomes.length > 0;
 
@@ -3648,7 +4025,11 @@
       if (m > 1 && ((m - 1) % 12 === 0)) currentContrib *= p.annualStepFactor;
 
       const yearIndex = Math.floor((m - 1) / 12);
-      const inRetirement = p.retireEnabled && (p.withdrawMonthly > 0) && (yearIndex >= p.retireAtYear);
+      // In household mode the retirement date is the household's, not the account's,
+      // so every pot stops contributing and starts being available on the same day.
+      const inRetirement = household
+        ? (yearIndex >= household.retireAtYear)
+        : (p.retireEnabled && (p.withdrawMonthly > 0) && (yearIndex >= p.retireAtYear));
 
       let contribution = 0;
       let withdrawal = 0;
@@ -3662,7 +4043,11 @@
         balance += contribution;
       } else if (inRetirement) {
         let target;
-        if (p.withdrawMode === "percent") {
+        if (household) {
+          // Whatever the earlier accounts in the order could not cover. Already net
+          // of the household's pooled outside income.
+          target = household.needFor(m);
+        } else if (p.withdrawMode === "percent") {
           // Take a share of what is actually there. Self-correcting: it falls in a
           // bad market and can never exhaust the pot, at the cost of a variable income.
           target = balance * (p.withdrawPercent / 12);
@@ -3672,22 +4057,42 @@
             : 1;
           target = p.withdrawMonthly * inflFactor;
         }
-        // Pensions and the like are spent before the portfolio is touched, so they
-        // reduce the draw rather than adding to it. Floored at zero: a surplus is
-        // assumed spent or held elsewhere, never reinvested, which keeps this from
-        // flattering the outcome.
-        if (hasIncome) {
+        /* Pensions and the like are spent before the portfolio is touched, so they
+           reduce the draw rather than adding to it. Floored at zero: a surplus is
+           assumed spent or held elsewhere, never reinvested, which keeps this from
+           flattering the outcome.
+           Skipped in household mode, where income is pooled and netted off once at
+           the household level -- applying it per account would spend the same
+           pension two or three times over. */
+        if (hasIncome && !household) {
           const income = incomeForYear(yearIndex);
           totalIncome += income;
           target = Math.max(0, target - income);
         }
+        /* A pre-tax account holds dollars you do not fully own yet. To put a given
+           amount in your pocket you have to take more out and hand the rest over,
+           so the pot drains faster than the headline figure suggests.
+           Percent mode is exempt: "take 4% a year" is a withdrawal rule, not a
+           spending target, so the stated share comes out and the tax is paid from
+           it -- grossing that up would quietly break the rule being tested. */
+        let draw = target;
+        // A household need is always a spending target, so it always grosses up;
+        // percent mode is a withdrawal rule and only exists outside household mode.
+        if (p.deferredTaxPct > 0 && (household || p.withdrawMode !== "percent")) {
+          draw = target * p.withdrawGrossUp;
+        }
         // Spending ceiling: hold the annual draw under a share of the balance.
+        // Applied after the gross-up, since what depletes the pot is the gross draw.
         if (p.withdrawCapPct > 0) {
-          target = Math.min(target, balance * (p.withdrawCapPct / 12));
+          draw = Math.min(draw, balance * (p.withdrawCapPct / 12));
         }
         const pre = balance;
-        balance = Math.max(0, balance - target);
+        balance = Math.max(0, balance - draw);
         withdrawal = pre - balance;
+        if (p.deferredTaxPct > 0) totalWithdrawalTax += withdrawal * p.deferredTaxPct;
+        // Report back in spendable dollars, which for a pre-tax pot is less than
+        // what left the account. A pot that runs dry simply covers less.
+        if (household) household.covered(m, withdrawal * (1 - p.deferredTaxPct));
         if (depletionMonth === null && balance <= 0) depletionMonth = m;
       }
 
@@ -3695,8 +4100,9 @@
 
       let interest = balance * rateForMonth(m, yearIndex);
       // Tax applies to gains only. Applying it to a negative month as well handed
-      // back a loss rebate, which flattered every downside path.
-      if (p.taxPct > 0 && interest > 0) interest = interest * (1 - p.taxPct);
+      // back a loss rebate, which flattered every downside path. Sheltered accounts
+      // pay nothing here -- that is what gainsTaxPct being zero for them means.
+      if (p.gainsTaxPct > 0 && interest > 0) interest = interest * (1 - p.gainsTaxPct);
       balance = Math.max(0, balance + interest);
 
       // Fees come off the balance after growth, the way an expense ratio accrues.
@@ -3712,13 +4118,25 @@
       }
     }
 
-    return { balance, depletionMonth, totalFees, totalIncome };
+    /* What is left in a pre-tax account is not yet spendable. Everything else in
+       the tool reports the raw balance, so this is carried alongside rather than
+       folded in -- the caller decides which lens to show. */
+    return {
+      balance,
+      depletionMonth,
+      totalFees,
+      totalIncome,
+      totalWithdrawalTax,
+      afterTaxBalance: balance * (1 - p.deferredTaxPct),
+      deferredTaxOwed: balance * p.deferredTaxPct
+    };
   }
 
-  function computeDeterministic(params) {
+  function computeDeterministic(params, household) {
     const p = normalizeRunParams(params);
     const aprPercent = num(params.aprPercent, 0);
     const monthlyRate = (aprPercent / 100) / 12;
+    const schedule = buildReturnSchedule(p, params);
     const msByMonth = bucketMilestonesByMonth(params.milestones, p.monthsTotal);
 
     const { principal, years, monthsTotal } = p;
@@ -3760,7 +4178,7 @@
       return delta;
     };
 
-    const run = walkMonths(p, msByMonth, () => monthlyRate, {
+    const run = walkMonths(p, msByMonth, (m) => schedule.at(m).monthlyRate, {
       onStart(balance, event) {
         recordEvent(event);
         seriesYearly[0] = balance;
@@ -3794,7 +4212,7 @@
           growthSeriesYearly[y] = seriesYearly[y] - netContribSeriesYearly[y];
         }
       }
-    });
+    }, household);
 
     const balance = run.balance;
     const depletionMonth = run.depletionMonth;
@@ -3860,6 +4278,11 @@
       depletionText: depletionYear === null ? "" : `Funds exhausted in Year ${depletionYear}`,
       totalFees: num(run.totalFees, 0),
       totalIncome: num(run.totalIncome, 0),
+      taxType: p.taxType,
+      deferredTaxPct: p.deferredTaxPct,
+      totalWithdrawalTax: num(run.totalWithdrawalTax, 0),
+      afterTaxEnding: num(run.afterTaxBalance, balance),
+      deferredTaxOwed: num(run.deferredTaxOwed, 0),
       milestoneTotals: { in: milestoneIn, out: milestoneOut, net: milestoneNet }
     };
   }
@@ -4053,24 +4476,17 @@
   }
 
   function solveContributionBinary(params) {
-    const {
-      principal, years, targetNominal, aprPercent, contribFreq,
-      contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
-      retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation
-    } = params;
+    const { targetNominal } = params;
 
-    const baseNoContrib = computeDeterministic({
-      principal, contribAmt: 0, contribFreq, years, aprPercent,
-      contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
-      retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation
-    }).ending;
+    /* Carry the whole plan into each trial run and vary only the contribution.
+       This used to relist the fields by hand, which meant every setting added
+       since -- fees, withdrawal strategy, other income, tax treatment -- was
+       dropped on the floor, and goal seek quietly answered a different question
+       than the projection sitting next to it. */
+    const f = (c) => computeDeterministic({ ...params, contribAmt: c }).ending;
+
+    const baseNoContrib = f(0);
     if (baseNoContrib >= targetNominal) return 0;
-
-    const f = (c) => computeDeterministic({
-      principal, contribAmt: c, contribFreq, years, aprPercent,
-      contribIncreasePct, maxMonthlyContrib, milestones, taxPct,
-      retireEnabled, retireAtYear, withdrawMonthly, inflationPct, withdrawIndexToInflation
-    }).ending;
 
     let low = 0;
     let high = 100;
@@ -4179,14 +4595,31 @@
     };
   })();
 
-  // Calm months carry exactly the offsetting drift, so switching clustering on
-  // redistributes returns without changing the expected outcome.
+  /* Calm months carry an offsetting drift so switching clustering on redistributes
+     returns without changing the expected outcome.
+
+     Sizing that offset is subtler than it looks. Balancing the average of a single
+     month -- (1-p)e^c + p·e^-k = 1 -- is only correct if each month's regime were
+     drawn independently. It is not: turbulence persists, so the monthly factors are
+     dependent and their product does not separate. That version inflated the
+     average 30-year outcome by nearly 13%, which the model checks caught.
+
+     For a Markov-modulated product the per-step growth factor is the dominant
+     eigenvalue of the transition matrix weighted by each state's factor. Setting
+     that eigenvalue to 1 is the condition that actually preserves the mean, and
+     for two states it solves in closed form. */
   function regimeShiftsFor(sigmaLogM) {
     const k = VOL_REGIME.bearDriftPerSigma * Math.max(0, num(sigmaLogM, 0));
     if (!(k > 0)) return [0, 0];
-    const pTurb = VOL_REGIME_STATE.pTurb;
-    const calmShift = Math.log((1 - pTurb * Math.exp(-k)) / (1 - pTurb));
-    return [calmShift, -k];
+    const a = VOL_REGIME.calmToTurbulent;
+    const b = VOL_REGIME.turbulentToCalm;
+    const K = Math.exp(-k);
+    const det = (1 - a) * (1 - b) - a * b;
+    const denom = (1 - a) - K * det;
+    if (!(Math.abs(denom) > 1e-12)) return [0, -k];
+    const calmFactor = (1 - (1 - b) * K) / denom;
+    if (!(calmFactor > 0)) return [0, -k];
+    return [Math.log(calmFactor), -k];
   }
 
   function makeVolRegime(rng) {
@@ -4229,21 +4662,70 @@
     };
   }
 
-  function simulateTrial(params, nextNormal, nextVol) {
+  /* What the portfolio looks like in each month of the plan.
+
+     Without a glide this is one set of numbers repeated, and `at()` hands back the
+     same object every time -- which is what keeps a plan with the glide switched
+     off bit-for-bit identical to before it existed.
+
+     With a glide on, the mix moves in a straight line from today's return and band
+     to the steadier pair, arriving at glideEndMonth and holding there. Blending the
+     10th and 90th percentiles alongside the mean is what narrows the spread: a
+     portfolio that has moved into bonds has both a lower expected return and less
+     to be wrong about, and modelling only the first would be the pessimistic half
+     of the trade.
+
+     Built once per run and shared by every trial -- rebuilding it inside the trial
+     loop would mean a few hundred thousand redundant logarithms. */
+  function buildReturnSchedule(p, params) {
+    const startApr = num(params.aprPercent, 0);
+    const startLow = num(params.rateLow, startApr);
+    const startHigh = num(params.rateHigh, startApr);
+
+    const entryFor = (apr, low, high) => {
+      const lp = lognormalMonthlyParams(apr, low, high);
+      return {
+        aprPercent: apr,
+        monthlyRate: (apr / 100) / 12,
+        muLogM: lp.muLogM,
+        sigmaLogM: lp.sigmaLogM,
+        // Each point on the glide gets the bear drift its own volatility implies.
+        shifts: regimeShiftsFor(lp.sigmaLogM)
+      };
+    };
+
+    if (!p.glideEnabled || !(p.glideEndMonth > 0)) {
+      const only = entryFor(startApr, startLow, startHigh);
+      return { glide: false, at: () => only };
+    }
+
+    const table = new Array(p.monthsTotal + 1);
+    for (let m = 0; m <= p.monthsTotal; m++) {
+      const w = Math.min(1, m / p.glideEndMonth);
+      table[m] = entryFor(
+        startApr + (p.glideEndRate - startApr) * w,
+        startLow + (p.glideEndLow - startLow) * w,
+        startHigh + (p.glideEndHigh - startHigh) * w
+      );
+    }
+    return { glide: true, at: (m) => table[m < 0 ? 0 : (m > p.monthsTotal ? p.monthsTotal : m)] };
+  }
+
+  function simulateTrial(params, nextNormal, nextVol, schedule) {
     const p = normalizeRunParams(params);
     const msByMonth = bucketMilestonesByMonth(params.milestones, p.monthsTotal);
-    const { muLogM, sigmaLogM } = lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh);
+    const sched = schedule || buildReturnSchedule(p, params);
 
     const seriesYearly = [];
     const clustered = !!params.fatTails && typeof nextVol === "function";
 
     // A fresh draw every month, so a bad stretch early in retirement can sink a trial
     // that the same returns in a different order would not.
-    const regimeShifts = regimeShiftsFor(sigmaLogM);
-    const rateForMonth = () => {
-      if (!clustered) return monthlyGrowth(muLogM, sigmaLogM, 1, 0, nextNormal());
+    const rateForMonth = (m) => {
+      const e = sched.at(m);
+      if (!clustered) return monthlyGrowth(e.muLogM, e.sigmaLogM, 1, 0, nextNormal());
       const s = nextVol();
-      return monthlyGrowth(muLogM, sigmaLogM, VOL_REGIME_STATE.mult[s], regimeShifts[s], nextNormal());
+      return monthlyGrowth(e.muLogM, e.sigmaLogM, VOL_REGIME_STATE.mult[s], e.shifts[s], nextNormal());
     };
 
     const run = walkMonths(p, msByMonth, rateForMonth, {
@@ -4277,22 +4759,31 @@
     return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
   }
 
-  function runMonteCarlo(params) {
+  function runMonteCarlo(params, runsOverride) {
     const yearsInt = Math.max(0, Math.round(params.years || 0));
     const monthsTotal = Math.max(1, Math.round((params.years || 0) * 12));
     // Trials are scaled to a fixed step budget: enough samples to steady the tails,
-    // still fast enough to rerun on every keystroke.
-    const runs = Math.max(MC_MIN_RUNS, Math.min(MC_MAX_RUNS, Math.round(MC_STEP_BUDGET / monthsTotal)));
+    // still fast enough to rerun on every keystroke. The self-checks pass a smaller
+    // count so they stay quick, and widen their tolerances to match.
+    const runs = Number.isFinite(runsOverride) && runsOverride > 0
+      ? Math.round(runsOverride)
+      : Math.max(MC_MIN_RUNS, Math.min(MC_MAX_RUNS, Math.round(MC_STEP_BUDGET / monthsTotal)));
     const buckets = Array.from({ length: yearsInt + 1 }, () => []);
     const rng = mulberry32(MC_SEED);
     const nextNormal = makeNormal(rng);
-    const nextVol = makeVolRegime(rng);
+    /* The regime draws from its own stream. Sharing one meant switching clustering
+       on also shifted every market shock after it, so "with" and "without" were
+       different samples and could not be compared -- which is exactly why an
+       earlier measurement of its effect on ruin was uninterpretable. */
+    const nextVol = makeVolRegime(mulberry32(MC_SEED ^ 0x5bf03635));
+    // Built once and reused by every trial; it depends only on the plan, not the draws.
+    const schedule = buildReturnSchedule(normalizeRunParams(params), params);
 
     let ruinCount = 0;
     let endingSum = 0;
 
     for (let i = 0; i < runs; i++) {
-      const trial = simulateTrial(params, nextNormal, nextVol);
+      const trial = simulateTrial(params, nextNormal, nextVol, schedule);
       const series = trial.seriesYearly;
       if (trial.depletionMonth !== null) ruinCount++;
       const ending = series[yearsInt] ?? series[series.length - 1] ?? 0;
@@ -4655,7 +5146,9 @@
         retireAtYear: ui.retireAtYear,
         withdrawMonthly: ui.withdrawMonthly,
         inflationPct: ui.inflationRate / 100,
-        withdrawIndexToInflation: ui.withdrawInflationToggle
+        withdrawIndexToInflation: ui.withdrawInflationToggle,
+        ...modelExtrasFromUI(ui),
+        contribStartMonth: 1
       });
       if (solved !== null) {
         contribAmt = solved;
@@ -4850,6 +5343,12 @@
     const kInt = $("kpiInterest");
     const kEir = $("kpiEIR");
 
+    /* Heading first, then the figure. The spoken announcement quotes the heading for
+       context, so setting it afterwards would have it read out last calculation's
+       year -- and on the very first run, the "(Year -)" placeholder. */
+    const pTitle = $("projectedTitle");
+    if (pTitle) pTitle.textContent = `Projected Net Worth (Year ${Math.round(years)})`;
+
     if (kEnd) animateProjectedValue(endingDisplay);
     if (kInv) kInv.textContent = fmt0.format(totalInvestedDisplay);
     if (kDep) kDep.textContent = fmt0.format(totalDepositsDisplay);
@@ -4871,9 +5370,6 @@
         kEir.textContent = (effectiveAnnualRate === null) ? "-" : (effectiveAnnualRate * 100).toFixed(2) + "%";
       }
     }
-
-    const pTitle = $("projectedTitle");
-    if (pTitle) pTitle.textContent = `Projected Net Worth (Year ${Math.round(years)})`;
 
     const gPct = $("growthPercent");
     const gIcon = $("growthIcon");
@@ -4936,7 +5432,12 @@
     const kDeplTile = $("kpiDepletionTile");
     const kDepl = $("kpiDepletion");
     if (kDeplTile) {
-      if (ui.retireEnabled && baseOut.depletionYear !== undefined) {
+      /* A coordinated household is spending even when no individual account has
+         its own retirement switched on, and whether that spending can be met is
+         the single most important number on the page. Without this the ruin
+         probability was being computed and then never shown. */
+      const householdSpending = !!baseOut.household;
+      if ((ui.retireEnabled || householdSpending) && baseOut.depletionYear !== undefined) {
         kDeplTile.style.display = "flex";
         if (kDepl) {
           if (mcEnabled && mcData && Number.isFinite(mcData.ruinRate)) {
@@ -4960,11 +5461,22 @@
 
     const pill = $("pill");
     if (pill) {
-      const lens = (ui.realMode ? ` | Today's dollars (${ui.inflationRate}%)` : "") + (ui.taxEnabled ? ` | Tax ${ui.taxRate}%` : "");
+      /* Only name the tax that is actually being applied. The gains-tax setting is
+         kept but ignored on a sheltered account, so reading it here would label a
+         Roth projection with a drag it never paid. */
+      const acctTaxType = ui.taxType || "taxable";
+      const taxLens = (acctTaxType === "taxable")
+        ? (ui.taxEnabled ? ` | Tax ${ui.taxRate}%` : "")
+        : (acctTaxType === "traditional" ? ` | Pre-tax, ${num(ui.retireTaxRate, 0)}% on withdrawal` : " | Roth");
+      const lens = (ui.realMode ? ` | Today's dollars (${ui.inflationRate}%)` : "") + taxLens;
       if (mcEnabled && mcData) {
         pill.textContent = `${Math.round(years)} Year Outcome (P50) | P10-P90: ${fmt0.format(discountValue(mcData.p10[mcData.p10.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))} to ${fmt0.format(discountValue(mcData.p90[mcData.p90.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))}${lens}`;
       } else {
-        pill.textContent = `${Math.round(years)} Year Projection @ ${ui.rateBase}%${lens}`;
+        // A glided plan has no single rate, so name both ends rather than the start.
+        const rateText = ui.glideEnabled
+          ? `${ui.rateBase}% → ${num(ui.glideEndRate, 0)}%`
+          : `${ui.rateBase}%`;
+        pill.textContent = `${Math.round(years)} Year Projection @ ${rateText}${lens}`;
       }
     }
 
@@ -4999,7 +5511,11 @@
     if (mcHint) {
       if (mcEnabled && mcData) {
         const vol = lognormalMonthlyParams(ui.rateBase, ui.rateLow, ui.rateHigh).sigmaAnnual * 100;
-        mcHint.textContent = `${mcData.runs} lognormal trials, monthly steps, ${vol.toFixed(1)}% annual volatility. Low/High are the 10th/90th percentile years.`;
+        // Under a glide there is no one volatility to quote, so quote both ends.
+        const volText = ui.glideEnabled
+          ? `${vol.toFixed(1)}% falling to ${(lognormalMonthlyParams(ui.glideEndRate, ui.glideEndLow, ui.glideEndHigh).sigmaAnnual * 100).toFixed(1)}% annual volatility`
+          : `${vol.toFixed(1)}% annual volatility`;
+        mcHint.textContent = `${mcData.runs} lognormal trials, monthly steps, ${volText}. Low/High are the 10th/90th percentile years.`;
       } else {
         mcHint.textContent = "Runs thousands of randomised markets for a P10/P50/P90 range.";
       }
@@ -5051,11 +5567,15 @@
     });
 
     appState.chart.lastData = chartData;
+    updateChartLabel(chartData);
     requestDraw();
     if (allView) renderAccountsBreakdown(baseOut, ui.realMode ? ui.inflationRate / 100 : 0);
     renderComparisonTable();
     // An open data table tracks the projection instead of going stale.
     if ($("dataTableWrap") && !$("dataTableWrap").hidden) renderDataTable();
+    // Same for sensitivity: it is only computed while it is being looked at, since
+    // it runs a couple of dozen extra projections.
+    if ($("sensDetails") && $("sensDetails").open) renderSensitivity();
   }
 
   function drawChart(data) {
@@ -5524,6 +6044,40 @@
     return Math.max(startYear, Math.min(startYear + visibleYears, tRaw));
   }
 
+  /* A canvas is opaque to assistive technology -- without this it announces as
+     "chart" and nothing else. This says what the picture shows: where the line
+     starts, where it ends, and the range around it when the simulation is on. The
+     detail is reachable by arrowing along it, and in full through the data table. */
+  function updateChartLabel(data) {
+    const canvas = $("chart");
+    if (!canvas) return;
+    if (!data) { canvas.setAttribute("aria-label", "Projection chart, no data yet."); return; }
+
+    const years = Math.round(num(data.years, 0));
+    const startVal = balanceAtYears(data, 0);
+    const parts = [];
+
+    if (data.mode === "mc" && data.p10 && data.p50 && data.p90) {
+      const p50 = seriesValueAt(data.p50, years);
+      const p10 = seriesValueAt(data.p10, years);
+      const p90 = seriesValueAt(data.p90, years);
+      parts.push(`Simulated projection over ${years} years.`);
+      parts.push(`Starts at ${fmt0.format(num(startVal, 0))}.`);
+      parts.push(`After ${years} years the median outcome is ${fmt0.format(num(p50, 0))}, ranging from ${fmt0.format(num(p10, 0))} to ${fmt0.format(num(p90, 0))}.`);
+    } else {
+      const endVal = balanceAtYears(data, years);
+      parts.push(`Projected balance over ${years} years.`);
+      parts.push(`Starts at ${fmt0.format(num(startVal, 0))} and ends at ${fmt0.format(num(endVal, 0))}.`);
+    }
+
+    // Counted from the plan rather than from chart.milestoneMeta, which is a product
+    // of the last draw and so is a frame behind on the very first render.
+    const markers = appState.milestonesEnabled ? getMilestoneRunList().length : 0;
+    if (markers > 0) parts.push(`${markers} marker${markers === 1 ? "" : "s"} along the way.`);
+    parts.push("Interactive: use the arrow keys to read individual points.");
+    canvas.setAttribute("aria-label", parts.join(" "));
+  }
+
   function updateTooltip() {
     const tooltip = $("chartTooltip");
     if (!tooltip || !appState.chart.lastData) return;
@@ -5649,6 +6203,132 @@
       }
       updateTooltip();
       requestDraw();
+    };
+
+    /* ---- Reading the line without a mouse -------------------------------
+       The pointer path thinks in pixels. This one thinks in months and converts
+       at the end, so every stop lands on a point the model actually computed
+       rather than wherever a pixel happened to fall. */
+
+    const totalCursorMonths = () => Math.max(0, Math.round((appState.chart.xScale?.totalYears || 0) * 12));
+
+    const cursorMonth = () => {
+      const t = appState.chart.activeT;
+      return (t === null || t === undefined) ? null : Math.round(t * 12);
+    };
+
+    // Reads back exactly what the tooltip is showing, so the spoken version and
+    // the drawn one cannot drift apart as either changes.
+    const announceCursor = () => {
+      const out = $("chartReadout");
+      const tip = $("chartTooltip");
+      if (!out || !tip) return;
+      if (appState.chart.activeT === null || appState.chart.activeT === undefined) {
+        out.textContent = "";
+        return;
+      }
+      const title = tip.querySelector(".ttTitle")?.textContent?.trim() || "";
+      const rows = Array.from(tip.querySelectorAll(".ttRow")).map(r => {
+        const k = r.querySelector(".ttKey")?.textContent?.trim() || "";
+        const v = r.querySelector(".ttVal")?.textContent?.trim() || "";
+        return (k && v) ? `${k}: ${v}` : (k || v);
+      }).filter(Boolean);
+      out.textContent = [title, ...rows].join(". ");
+    };
+
+    const setCursorToMonth = (absMonth) => {
+      const scale = appState.chart.xScale;
+      if (!scale) return;
+      const maxM = totalCursorMonths();
+      const t = Math.max(0, Math.min(Math.round(absMonth), maxM)) / 12;
+
+      /* Follow the cursor when zoomed in. Without this, arrowing past the edge of
+         the window keeps reading out points that are not on screen, which is
+         disorienting for a sighted keyboard user and useless to everyone. */
+      const visible = scale.visibleYears || scale.totalYears || 1;
+      const maxOffset = Math.max(0, (scale.totalYears || 0) - visible);
+      let start = scale.startYear;
+      if (maxOffset > 0) {
+        if (t < start) start = t;
+        else if (t > start + visible) start = t - visible;
+        start = Math.max(0, Math.min(start, maxOffset));
+        appState.chart.viewOffset = start / maxOffset;
+      }
+
+      appState.chart.activeT = t;
+      appState.chart.activeYear = Math.round(t);
+      // Derived from the window this move produces, not the one the last draw left
+      // behind, or the marker lags a frame whenever the view has to scroll.
+      appState.chart.activeX = scale.padL + ((t - start) / visible) * scale.plotW;
+      // Drop any stale pointer position so the tooltip anchors to the cursor
+      // instead of wherever the mouse was abandoned.
+      appState.chart.hoverX = null;
+      appState.chart.hoverY = null;
+
+      const year = Math.round(t);
+      const onMarker = (appState.chart.milestoneMeta || []).some(g => g.year === year);
+      appState.chart.activeMilestoneYear = onMarker ? year : null;
+
+      updateTooltip();
+      announceCursor();
+      requestDraw();
+    };
+
+    const clearCursor = (spoken) => {
+      onLeave();
+      appState.chart.hoverX = null;
+      appState.chart.hoverY = null;
+      const out = $("chartReadout");
+      if (out) out.textContent = spoken || "";
+    };
+
+    const jumpToMarker = (dir) => {
+      const years = (appState.chart.milestoneMeta || [])
+        .map(g => g.year)
+        .filter(y => Number.isFinite(y))
+        .sort((a, b) => a - b);
+      if (!years.length) {
+        const out = $("chartReadout");
+        if (out) out.textContent = "No markers on this chart.";
+        return true;
+      }
+      const cur = cursorMonth();
+      const here = (cur === null) ? (dir > 0 ? -Infinity : Infinity) : cur / 12;
+      const next = (dir > 0)
+        ? years.find(y => y > here + 1e-9)
+        : years.slice().reverse().find(y => y < here - 1e-9);
+      if (next === undefined) {
+        const out = $("chartReadout");
+        if (out) out.textContent = dir > 0 ? "No later marker." : "No earlier marker.";
+        return true;
+      }
+      setCursorToMonth(Math.round(next * 12));
+      return true;
+    };
+
+    const onKeyDown = (e) => {
+      // Leave browser and OS shortcuts alone.
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const maxM = totalCursorMonths();
+      if (!(maxM > 0)) return;
+      const cur = cursorMonth();
+      const from = (cur === null) ? 0 : cur;
+      const step = e.shiftKey ? 12 : 1;
+      let handled = true;
+
+      switch (e.key) {
+        // Arriving with no cursor starts at the end being arrowed away from.
+        case "ArrowRight": setCursorToMonth(cur === null ? 0 : from + step); break;
+        case "ArrowLeft":  setCursorToMonth(cur === null ? maxM : from - step); break;
+        case "PageDown":   setCursorToMonth(from + 60); break;
+        case "PageUp":     setCursorToMonth(from - 60); break;
+        case "Home":       setCursorToMonth(0); break;
+        case "End":        setCursorToMonth(maxM); break;
+        case "Escape":     clearCursor("Stopped reading the chart."); break;
+        case "m": case "M": handled = jumpToMarker(e.shiftKey ? -1 : 1); break;
+        default: handled = false;
+      }
+      if (handled) { e.preventDefault(); e.stopPropagation(); }
     };
 
     const startDragAt = (mx, milestoneThreshold = 10, setPanCursor = true) => {
@@ -5792,6 +6472,21 @@
     const onTouchEnd = () => {
       finalizeDrag(true);
     };
+
+    canvas.addEventListener("keydown", onKeyDown);
+    /* The on-screen key hint only appears once the chart has focus. It is guidance
+       for someone already driving it, and permanent instructions for a control most
+       people will reach for with a mouse would just be clutter. */
+    canvas.addEventListener("focus", () => {
+      const hint = $("chartKeysHint");
+      if (hint) hint.hidden = false;
+    });
+    canvas.addEventListener("blur", () => {
+      const hint = $("chartKeysHint");
+      if (hint) hint.hidden = true;
+      // Leave nothing behind, the same way moving the mouse away does.
+      clearCursor("");
+    });
 
     canvas.addEventListener("mousemove", onMove);
     canvas.addEventListener("mouseleave", onLeave);
@@ -6413,6 +7108,102 @@
     };
   }
 
+  /* ---- Coordinated household drawdown ------------------------------------
+     Left to themselves the accounts each fund their own retirement, so a household
+     with three pots draws from all three at once. Nobody does that, and it is the
+     expensive way round: it spends the tax-free money at the same rate as
+     everything else.
+
+     The order below is the conventional one, and the reasoning is the whole point.
+     Already-taxed money goes first, because nothing further is owed on it and
+     spending it leaves the sheltered pots compounding untouched. Pre-tax money
+     next. The Roth goes last: it is the only pot that both grows and is spent
+     entirely tax free, so every extra month it survives is worth more than the
+     same month anywhere else. */
+  const DRAW_ORDER = { taxable: 0, traditional: 1, roth: 2 };
+
+  function accountsInDrawOrder() {
+    return appState.accounts
+      .map((acct, i) => ({
+        acct,
+        i,
+        rank: DRAW_ORDER[acct.state?.ui?.taxType || "taxable"] ?? 0
+      }))
+      // Ties keep the order the tabs are in, so the result is stable and explicable.
+      .sort((a, b) => (a.rank - b.rank) || (a.i - b.i))
+      .map(e => e.acct);
+  }
+
+  /* Tracks one household spending need across a run. Built once per projection and
+     reset before each Monte Carlo trial, since the accounts are walked repeatedly
+     against the same schedule of needs. */
+  function makeHouseholdDrawdown(monthsTotal) {
+    const hh = appState.household || {};
+    const monthly = Math.max(0, num(hh.monthly, 0));
+    if (!hh.enabled || !(monthly > 0) || !appState.accounts.length) return null;
+
+    const retireAtYear = Math.max(0, Math.round(num(hh.retireAtYear, 0)));
+    // One household, one inflation rate: the first account's. Stated in the UI.
+    const inflationPct = Math.max(0, num(appState.accounts[0]?.state?.ui?.inflationRate, 0)) / 100;
+
+    /* Outside income belongs to the household, not to whichever pot it happens to
+       be recorded against, so it is pooled and netted off once. Applying it per
+       account would spend the same pension two or three times over. */
+    const pooled = normalizeIncomes(
+      appState.accounts.flatMap(a => Array.isArray(a.state?.incomes) ? a.state.incomes : [])
+    );
+
+    const base = new Float64Array(monthsTotal + 1);
+    let totalNeeded = 0;
+    let totalIncome = 0;
+    for (let m = 1; m <= monthsTotal; m++) {
+      const yearIndex = Math.floor((m - 1) / 12);
+      if (yearIndex < retireAtYear) continue;
+      const factor = (inflationPct > 0) ? Math.pow(1 + inflationPct, yearIndex) : 1;
+      let income = 0;
+      pooled.forEach(inc => {
+        if (yearIndex < inc.startYear) return;
+        if (inc.endYear > 0 && yearIndex >= inc.endYear) return;
+        income += inc.amount * ((inc.indexed && inflationPct > 0) ? factor : 1);
+      });
+      totalIncome += income;
+      base[m] = Math.max(0, monthly * factor - income);
+      totalNeeded += base[m];
+    }
+
+    const need = new Float64Array(monthsTotal + 1);
+    let covered = 0;
+
+    return {
+      retireAtYear,
+      monthly,
+      pooledIncome: pooled,
+      totalNeeded,
+      totalIncome,
+      reset() { need.set(base); covered = 0; },
+      needFor(m) { return need[m] || 0; },
+      covered(m, amount) {
+        const take = Math.min(need[m] || 0, Math.max(0, num(amount, 0)));
+        need[m] -= take;
+        covered += take;
+      },
+      // Whatever is still outstanding once every account has run was unaffordable.
+      result() {
+        let shortMonths = 0;
+        let firstShortMonth = null;
+        let shortfall = 0;
+        for (let m = 1; m <= monthsTotal; m++) {
+          if (need[m] > 0.005) {
+            shortMonths++;
+            shortfall += need[m];
+            if (firstShortMonth === null) firstShortMonth = m;
+          }
+        }
+        return { covered, shortfall, shortMonths, firstShortMonth };
+      }
+    };
+  }
+
   function computeCombinedDeterministic() {
     const years = combinedHorizonYears();
     if (!(years > 0) || !appState.accounts.length) return null;
@@ -6430,16 +7221,29 @@
     let combinedPrincipal = 0;
     let combinedFees = 0;
     let combinedIncome = 0;
+    let combinedAfterTax = 0;
+    let combinedTaxOwed = 0;
     let depletionYear = null;
 
-    appState.accounts.forEach(acct => {
+    /* With a household drawdown the accounts have to be walked in draw order, each
+       one seeing only what the earlier ones could not cover. Without it they are
+       independent and the order is irrelevant. */
+    const household = makeHouseholdDrawdown(monthsTotal);
+    if (household) household.reset();
+    const runOrder = household ? accountsInDrawOrder() : appState.accounts;
+
+    runOrder.forEach(acct => {
       const params = accountRunParams(acct, years);
-      const out = computeDeterministic(params);
+      const out = computeDeterministic(params, household);
       perAccount.push({ id: acct.id, name: acct.name, out });
       ending += out.ending;
       combinedPrincipal += clamp(params.principal, 0);
       combinedFees += num(out.totalFees, 0);
       combinedIncome += num(out.totalIncome, 0);
+      // Summing after-tax balances is the whole point of the combined view: it is
+      // the only figure where a pre-tax and a Roth dollar are actually comparable.
+      combinedAfterTax += num(out.afterTaxEnding, out.ending);
+      combinedTaxOwed += num(out.deferredTaxOwed, 0);
       for (let y = 0; y <= maxYear; y++) {
         seriesYearly[y] += num(out.seriesYearly[y], 0);
         netContribSeriesYearly[y] += num(out.netContribSeriesYearly[y], 0);
@@ -6464,13 +7268,35 @@
     }
 
     const cross = computeCrossoverFromSchedule({ scheduleMonthly });
+
+    /* In household mode "exhausted" is the wrong question -- one pot emptying is
+       expected and fine, it is what the order is for. What matters is the month the
+       household could not be paid in full. */
+    const hhResult = household ? household.result() : null;
+    const shortfallYear = (hhResult && hhResult.firstShortMonth !== null)
+      ? Math.ceil(hhResult.firstShortMonth / 12)
+      : null;
+
     return {
       years,
       monthsTotal,
       ending,
       combinedPrincipal,
       totalFees: combinedFees,
-      totalIncome: combinedIncome,
+      // Income is pooled at household level there, so the per-account totals are 0.
+      totalIncome: household ? num(household.totalIncome, 0) : combinedIncome,
+      household: household ? {
+        monthly: household.monthly,
+        retireAtYear: household.retireAtYear,
+        needed: household.totalNeeded,
+        covered: hhResult.covered,
+        shortfall: hhResult.shortfall,
+        shortMonths: hhResult.shortMonths,
+        shortfallYear,
+        order: perAccount.map(e => e.name)
+      } : null,
+      afterTaxEnding: combinedAfterTax,
+      deferredTaxOwed: combinedTaxOwed,
       seriesYearly,
       netContribSeriesYearly,
       growthSeriesYearly,
@@ -6478,8 +7304,10 @@
       eventInfoYearly,
       crossoverYear: cross.year,
       crossoverText: cross.year === null ? "" : `Growth surpasses contributions in Year ${cross.year}`,
-      depletionYear,
-      depletionText: depletionYear === null ? "" : `An account is exhausted in Year ${depletionYear}`,
+      depletionYear: household ? shortfallYear : depletionYear,
+      depletionText: household
+        ? (shortfallYear === null ? "" : `Spending cannot be met in full from Year ${shortfallYear}`)
+        : (depletionYear === null ? "" : `An account is exhausted in Year ${depletionYear}`),
       milestoneTotals: { in: 0, out: 0, net: 0 },
       perAccount
     };
@@ -6506,23 +7334,29 @@
       Math.min(MC_MAX_RUNS, Math.round(MC_STEP_BUDGET / (monthsTotal * accountCount)))
     );
 
-    const specs = appState.accounts.map(acct => {
+    // Same ordering rule as the projection, so the two agree about who pays first.
+    const household = makeHouseholdDrawdown(monthsTotal);
+    const specs = (household ? accountsInDrawOrder() : appState.accounts).map(acct => {
       const params = accountRunParams(acct, years);
-      const log = lognormalMonthlyParams(params.aprPercent, params.rateLow, params.rateHigh);
+      const norm = normalizeRunParams(params);
       return {
         params,
         fatTails: !!params.fatTails,
-        norm: normalizeRunParams(params),
+        norm,
         ms: bucketMilestonesByMonth(params.milestones, monthsTotal),
-        log,
-        // Each account's bear drift scales with its own volatility.
-        shifts: regimeShiftsFor(log.sigmaLogM)
+        // Each account glides on its own schedule, and its bear drift scales with
+        // whatever its volatility happens to be at that point along it.
+        schedule: buildReturnSchedule(norm, params)
       };
     });
 
     const rng = mulberry32(MC_SEED);
     const nextNormal = makeNormal(rng);
-    const nextVol = makeVolRegime(rng);
+    /* The regime draws from its own stream. Sharing one meant switching clustering
+       on also shifted every market shock after it, so "with" and "without" were
+       different samples and could not be compared -- which is exactly why an
+       earlier measurement of its effect on ruin was uninterpretable. */
+    const nextVol = makeVolRegime(mulberry32(MC_SEED ^ 0x5bf03635));
     const buckets = Array.from({ length: yearsInt + 1 }, () => []);
     const shocks = new Float64Array(monthsTotal + 1);
     const regimes = new Uint8Array(monthsTotal + 1);
@@ -6539,22 +7373,28 @@
 
       const totals = new Array(yearsInt + 1).fill(0);
       let anyDepleted = false;
+      // The schedule of needs is the same every trial; what changes is how much of
+      // it the markets let the accounts cover, so it is rewound rather than rebuilt.
+      if (household) household.reset();
 
       specs.forEach(spec => {
         const yearly = [];
-        const rateForMonth = (m) => monthlyGrowth(
-          spec.log.muLogM,
-          spec.log.sigmaLogM,
-          spec.fatTails ? VOL_REGIME_STATE.mult[regimes[m]] : 1,
-          spec.fatTails ? spec.shifts[regimes[m]] : 0,
-          shocks[m]
-        );
+        const rateForMonth = (m) => {
+          const e = spec.schedule.at(m);
+          return monthlyGrowth(
+            e.muLogM,
+            e.sigmaLogM,
+            spec.fatTails ? VOL_REGIME_STATE.mult[regimes[m]] : 1,
+            spec.fatTails ? e.shifts[regimes[m]] : 0,
+            shocks[m]
+          );
+        };
         const run = walkMonths(spec.norm, spec.ms, rateForMonth, {
           onStart(balance) { yearly[0] = balance; },
           onMonth(step) {
             if (step.month % 12 === 0) yearly[Math.round(step.month / 12)] = step.balance;
           }
-        });
+        }, household);
         if (run.depletionMonth !== null) anyDepleted = true;
         for (let y = 0; y <= yearsInt; y++) {
           const v = (typeof yearly[y] === "number") ? yearly[y] : (yearly[y - 1] ?? run.balance);
@@ -6563,7 +7403,14 @@
         }
       });
 
-      if (anyDepleted) ruinCount++;
+      /* Ruin means something different once the accounts are coordinated. One pot
+         emptying is the plan working as intended; the trial only fails if the
+         household could not be paid in full. */
+      if (household) {
+        if (household.result().shortMonths > 0) ruinCount++;
+      } else if (anyDepleted) {
+        ruinCount++;
+      }
       endingSum += totals[yearsInt];
       for (let y = 0; y <= yearsInt; y++) buckets[y].push(totals[y]);
     }
@@ -6578,6 +7425,12 @@
     return { p10, p50, p90, runs, ruinRate: runs > 0 ? ruinCount / runs : 0, meanEnding: runs > 0 ? endingSum / runs : 0 };
   }
 
+  function taxTypeLabel(taxType) {
+    if (taxType === "traditional") return "Pre-tax";
+    if (taxType === "roth") return "Roth";
+    return "Taxable";
+  }
+
   function renderAccountsBreakdown(combined, realPct) {
     const list = $("breakdownList");
     const note = $("breakdownNote");
@@ -6586,21 +7439,78 @@
     if (!combined) { list.innerHTML = ""; return; }
 
     const years = combined.years;
-    const total = combined.ending || 0;
+
+    // Mirror the household controls back out, and say what the order is doing.
+    const hh = appState.household || {};
+    if ($("householdToggle")) $("householdToggle").checked = !!hh.enabled;
+    if ($("householdMonthly")) $("householdMonthly").value = num(hh.monthly, 4000);
+    if ($("householdRetireYear")) $("householdRetireYear").value = num(hh.retireAtYear, 20);
+    if ($("householdFields")) $("householdFields").hidden = !hh.enabled;
+    const hhHint = $("householdHint");
+    if (hhHint) {
+      const info = combined.household;
+      if (!hh.enabled) {
+        hhHint.textContent = "Off, so each account funds its own retirement separately and they all draw at once.";
+      } else if (info) {
+        const order = info.order.join(" → ");
+        const shortfall = info.shortMonths > 0
+          ? ` Runs short from Year ${info.shortfallYear}.`
+          : " Covered in full for the whole horizon.";
+        hhHint.textContent = `Taxable first, then pre-tax, and the Roth last: ${order}.${shortfall}`;
+      } else {
+        hhHint.textContent = "Set a monthly amount above zero to coordinate the accounts.";
+      }
+    }
+
+    /* A pre-tax dollar and a Roth dollar are not the same dollar, so adding the
+       raw balances answers nothing. The toggle only appears when at least one
+       account actually defers tax -- otherwise the two views are identical and
+       the control would be noise. */
+    const owesTax = num(combined.deferredTaxOwed, 0) > 0.005;
+    const bar = $("afterTaxBar");
+    const toggle = $("afterTaxToggle");
+    if (bar) bar.hidden = !owesTax;
+    const afterTax = owesTax && !!toggle?.checked;
+
+    const total = (afterTax ? combined.afterTaxEnding : combined.ending) || 0;
     list.innerHTML = combined.perAccount.map(entry => {
-      const nominal = entry.out.ending;
+      const nominal = afterTax ? num(entry.out.afterTaxEnding, entry.out.ending) : entry.out.ending;
       const shown = realPct > 0 ? discountValue(nominal, years, realPct) : nominal;
       const share = total > 0 ? (nominal / total) * 100 : 0;
       const acctUi = appState.accounts.find(a => a.id === entry.id)?.state?.ui || {};
       const ownYears = (acctUi.horizonUnit === "months") ? num(acctUi.yearsRaw, 0) / 12 : num(acctUi.yearsRaw, 0);
-      const meta = `${num(acctUi.rateBase, 0)}% a year${ownYears && Math.round(ownYears) !== Math.round(years) ? ` - own horizon ${Math.round(ownYears)}y` : ""}`;
+      const parts = [taxTypeLabel(entry.out.taxType), `${num(acctUi.rateBase, 0)}% a year`];
+      if (ownYears && Math.round(ownYears) !== Math.round(years)) parts.push(`own horizon ${Math.round(ownYears)}y`);
+      const meta = parts.join(" - ");
+      // Only a pre-tax account has a second, smaller number worth showing.
+      const owed = num(entry.out.deferredTaxOwed, 0);
+      const sub = (afterTax && owed > 0.005)
+        ? `after ${fmt0.format(owed)} tax`
+        : `${share.toFixed(1)}% of total`;
       return `<div class="breakdownRow">
         <div><div class="breakdownName">${escapeHtml(entry.name)}</div><div class="breakdownMeta">${escapeHtml(meta)}</div></div>
-        <div><div class="breakdownValue">${fmt0.format(shown)}</div><div class="breakdownShare">${share.toFixed(1)}% of total</div></div>
+        <div><div class="breakdownValue">${fmt0.format(shown)}</div><div class="breakdownShare">${escapeHtml(sub)}</div></div>
       </div>`;
     }).join("");
 
-    if (sub) sub.textContent = `Combined position across ${combined.perAccount.length} accounts over ${Math.round(years)} years.`;
+    const afterTaxHint = $("afterTaxHint");
+    if (afterTaxHint) {
+      const owed = num(combined.deferredTaxOwed, 0);
+      const shownOwed = realPct > 0 ? discountValue(owed, years, realPct) : owed;
+      afterTaxHint.textContent = afterTax
+        ? `${fmt0.format(shownOwed)} of the total belongs to the tax office, not to you.`
+        : `Pre-tax accounts owe about ${fmt0.format(shownOwed)} on the way out. Tick to net it off.`;
+    }
+
+    /* The headline above the chart stays gross, because that is genuinely what the
+       portfolio is worth. So when the net lens is on, the card states its own total
+       rather than leaving the rows to be added up against a figure that disagrees. */
+    if (sub) {
+      const shownTotal = realPct > 0 ? discountValue(total, years, realPct) : total;
+      sub.textContent = afterTax
+        ? `${fmt0.format(shownTotal)} across ${combined.perAccount.length} accounts after ${Math.round(years)} years, once the tax owed is netted off.`
+        : `Combined position across ${combined.perAccount.length} accounts over ${Math.round(years)} years.`;
+    }
     if (note) {
       const mismatch = combined.perAccount.some(entry => {
         const acctUi = appState.accounts.find(a => a.id === entry.id)?.state?.ui || {};
@@ -6613,11 +7523,547 @@
     }
   }
 
+  /* ---- Model self-checks ------------------------------------------------
+     The engine carries properties that must hold no matter what the inputs are.
+     They are checked here at runtime and reported, rather than living only in a
+     console function nobody runs. Every one of these encodes a mistake that was
+     actually made and caught by hand during development.
+
+     Checks build their own parameters and never read the live plan, so the result
+     is about the engine, not about whatever is currently on screen. */
+
+  const CHECK_RUNS = 400;            // small enough to stay quick on load
+  const CHECK_BASE = {
+    principal: 100000, contribAmt: 500, contribFreq: "monthly", years: 30,
+    aprPercent: 7, contribIncreasePct: 0, maxMonthlyContrib: 0, milestones: [],
+    taxPct: 0, retireEnabled: false, retireAtYear: 0, withdrawMonthly: 0,
+    inflationPct: 0, withdrawIndexToInflation: true, contribStartMonth: 1
+  };
+
+  function runModelChecks() {
+    const out = [];
+    const add = (name, pass, detail) => out.push({ name, pass: !!pass, detail });
+    const money = (v) => fmt0.format(num(v, 0));
+    const rel = (a, b) => (b === 0 ? (a === 0 ? 0 : 1) : Math.abs(a - b) / Math.abs(b));
+
+    try {
+      // --- Arithmetic the compounding must satisfy ---
+      const flat = computeDeterministic({ ...CHECK_BASE, contribAmt: 0, aprPercent: 0, years: 10 });
+      add("Zero return leaves the balance untouched", Math.abs(flat.ending - 100000) < 1e-6, money(flat.ending));
+
+      const contribOnly = computeDeterministic({ ...CHECK_BASE, principal: 0, contribAmt: 100, aprPercent: 0, years: 1 });
+      add("Contributions with no growth just add up", Math.abs(contribOnly.ending - 1200) < 1e-6, money(contribOnly.ending));
+
+      const comp = computeDeterministic({ ...CHECK_BASE, principal: 1000, contribAmt: 0, aprPercent: 12, years: 1 });
+      const compExpect = 1000 * Math.pow(1 + 0.12 / 12, 12);
+      add("12% APR compounds monthly", Math.abs(comp.ending - compExpect) < 0.5, `${money(comp.ending)} vs ${money(compExpect)}`);
+
+      const base = computeDeterministic(CHECK_BASE);
+
+      // --- Fees ---
+      const feeFree = computeDeterministic({ ...CHECK_BASE, feePct: 0 });
+      add("A zero fee changes nothing", Math.abs(feeFree.ending - base.ending) < 1e-9, money(feeFree.ending));
+      const fee1 = computeDeterministic({ ...CHECK_BASE, feePct: 1 });
+      const fee2 = computeDeterministic({ ...CHECK_BASE, feePct: 2 });
+      add("Higher fees always end lower", fee1.ending < base.ending && fee2.ending < fee1.ending,
+        `${money(base.ending)} > ${money(fee1.ending)} > ${money(fee2.ending)}`);
+
+      // --- Withdrawals ---
+      const drawBase = { ...CHECK_BASE, principal: 1000000, contribAmt: 0, retireEnabled: true, retireAtYear: 0, withdrawMonthly: 6000 };
+      const pctDraw = computeDeterministic({ ...drawBase, withdrawMode: "percent", withdrawPercent: 4 });
+      add("Percent-of-balance drawdown cannot run dry", pctDraw.depletionYear === null, money(pctDraw.ending) + " left");
+      const fixedDraw = computeDeterministic({ ...drawBase, withdrawMode: "indexed", inflationPct: 0.025 });
+      const capped = computeDeterministic({ ...drawBase, withdrawMode: "indexed", inflationPct: 0.025, withdrawCapPct: 5 });
+      add("A spending ceiling preserves capital", capped.ending >= fixedDraw.ending,
+        `${money(capped.ending)} vs ${money(fixedDraw.ending)}`);
+
+      // --- Outside income ---
+      const noInc = computeDeterministic(drawBase);
+      const withInc = computeDeterministic({ ...drawBase, incomes: [{ id: "chk", amount: 2000, startYear: 0, endYear: 0, indexed: false }] });
+      add("Outside income reduces what the pot pays", withInc.ending > noInc.ending,
+        `${money(withInc.ending)} vs ${money(noInc.ending)}`);
+      // Flat income for the whole 30-year drawdown must total exactly rate x months.
+      const flatIncome = computeDeterministic({ ...drawBase,
+        incomes: [{ id: "chk2", amount: 1000, startYear: 0, endYear: 0, indexed: false }] });
+      add("Un-indexed income totals rate x months",
+        Math.abs(flatIncome.totalIncome - 1000 * 360) < 1e-6,
+        `${money(flatIncome.totalIncome)} vs ${money(360000)}`);
+      // And an income that stops must contribute only for the years it ran.
+      const endingIncome = computeDeterministic({ ...drawBase,
+        incomes: [{ id: "chk3", amount: 1000, startYear: 5, endYear: 15, indexed: false }] });
+      add("Income respects its start and end years",
+        Math.abs(endingIncome.totalIncome - 1000 * 120) < 1e-6,
+        `${money(endingIncome.totalIncome)} vs ${money(120000)}`);
+
+      /* --- Tax treatment ---
+         The three account types differ only in when tax is paid, so each of these
+         pins down one leg of that. Between them they catch the two mistakes that
+         would matter most: taxing a sheltered account on the way up, and showing a
+         pre-tax balance as though it were spendable. */
+      const taxedBase = { ...CHECK_BASE, taxPct: 0.25 };
+      const taxableAcct = computeDeterministic({ ...taxedBase, taxType: "taxable" });
+      const rothAcct = computeDeterministic({ ...taxedBase, taxType: "roth" });
+      const tradAcct = computeDeterministic({ ...taxedBase, taxType: "traditional", retireTaxPct: 0.22 });
+
+      add("A sheltered account ignores the gains tax",
+        Math.abs(rothAcct.ending - base.ending) < 1e-9 && Math.abs(tradAcct.ending - base.ending) < 1e-9,
+        `${money(rothAcct.ending)} = ${money(base.ending)}`);
+      add("A taxable account pays the drag and ends lower",
+        taxableAcct.ending < base.ending,
+        `${money(taxableAcct.ending)} < ${money(base.ending)}`);
+      // Same gross balance, but only one of them owes anything on it.
+      add("Pre-tax balance is discounted, Roth is not",
+        Math.abs(tradAcct.afterTaxEnding - tradAcct.ending * 0.78) < 1e-6
+          && Math.abs(rothAcct.afterTaxEnding - rothAcct.ending) < 1e-9,
+        `${money(tradAcct.afterTaxEnding)} of ${money(tradAcct.ending)}`);
+
+      /* Spending $6,000 from a pre-tax pot at 22% means withdrawing 6000/0.78 =
+         $7,692.31, so it must drain faster than the identical Roth. */
+      const drawTaxBase = { ...drawBase, withdrawMode: "fixed", inflationPct: 0 };
+      const rothDraw = computeDeterministic({ ...drawTaxBase, taxType: "roth" });
+      const tradDraw = computeDeterministic({ ...drawTaxBase, taxType: "traditional", retireTaxPct: 0.22 });
+      add("A pre-tax pot drains faster for the same spending",
+        tradDraw.ending < rothDraw.ending,
+        `${money(tradDraw.ending)} < ${money(rothDraw.ending)}`);
+      // Tax paid is recomputed from the month-by-month schedule rather than trusted
+      // from the same running total that produced it.
+      const grossDrawn = (tradDraw.scheduleMonthly || [])
+        .reduce((acc, row) => acc + num(row.retirementWithdrawal, 0), 0);
+      add("Withdrawal tax is the stated share of what came out",
+        tradDraw.totalWithdrawalTax > 0
+          && Math.abs(tradDraw.totalWithdrawalTax - grossDrawn * 0.22) < 1e-6,
+        `${money(tradDraw.totalWithdrawalTax)} of ${money(grossDrawn)} drawn`);
+      add("A Roth owes nothing on the way out",
+        rothDraw.totalWithdrawalTax === 0 && rothDraw.deferredTaxOwed === 0, "0");
+
+      /* Percent-of-balance is a withdrawal rule, not a spending target, so the
+         gross-up must not apply -- the same share comes out either way. */
+      const pctRoth = computeDeterministic({ ...drawBase, withdrawMode: "percent", withdrawPercent: 4, taxType: "roth" });
+      const pctTrad = computeDeterministic({ ...drawBase, withdrawMode: "percent", withdrawPercent: 4, taxType: "traditional", retireTaxPct: 0.22 });
+      add("Percent drawdown takes its share regardless of tax type",
+        Math.abs(pctTrad.ending - pctRoth.ending) < 1e-6,
+        `${money(pctTrad.ending)} = ${money(pctRoth.ending)}`);
+
+      // A zero retirement rate must collapse traditional onto Roth exactly.
+      const tradZero = computeDeterministic({ ...drawTaxBase, taxType: "traditional", retireTaxPct: 0 });
+      add("A zero retirement rate makes pre-tax behave like Roth",
+        Math.abs(tradZero.ending - rothDraw.ending) < 1e-9,
+        `${money(tradZero.ending)} = ${money(rothDraw.ending)}`);
+
+      /* --- Glide path ---
+         The first of these is the one that matters most: the whole feature has to be
+         inert when it is switched off, or every plan that never touches it moves. */
+      const glideOff = computeDeterministic({ ...CHECK_BASE, glideEnabled: false, glideEndRate: 5 });
+      add("Leaving the glide off changes nothing",
+        Math.abs(glideOff.ending - base.ending) < 1e-9, money(glideOff.ending));
+
+      // Gliding to the rate you already hold is also a no-op, whatever the shape.
+      const glideFlat = computeDeterministic({ ...CHECK_BASE, glideEnabled: true, glideEndRate: 7, glideEndLow: 7, glideEndHigh: 7 });
+      add("Gliding to the same rate is a no-op",
+        Math.abs(glideFlat.ending - base.ending) < 1e-6, money(glideFlat.ending));
+
+      const glideDown = computeDeterministic({ ...CHECK_BASE, glideEnabled: true, glideEndRate: 5, glideEndLow: -5, glideEndHigh: 15 });
+      const glideUp = computeDeterministic({ ...CHECK_BASE, glideEnabled: true, glideEndRate: 9, glideEndLow: -11, glideEndHigh: 29 });
+      add("De-risking costs return, reaching for more adds it",
+        glideDown.ending < base.ending && glideUp.ending > base.ending,
+        `${money(glideDown.ending)} < ${money(base.ending)} < ${money(glideUp.ending)}`);
+
+      /* A glide that lands at retirement is finished sooner than one that runs the
+         full horizon, so the plan spends longer at the lower rate and ends lower. */
+      const glideToEnd = computeDeterministic({ ...CHECK_BASE, glideEnabled: true, glideEndRate: 5, retireEnabled: false });
+      const glideToRetire = computeDeterministic({ ...CHECK_BASE, glideEnabled: true, glideEndRate: 5,
+        retireEnabled: true, retireAtYear: 15, withdrawMonthly: 0 });
+      add("A glide aimed at retirement finishes earlier and ends lower",
+        glideToRetire.ending < glideToEnd.ending,
+        `${money(glideToRetire.ending)} < ${money(glideToEnd.ending)}`);
+
+      /* The simulation has to see the glide too. Held at a single rate the band is
+         one width; gliding into a narrower band must tighten the downside less than
+         it tightens nothing at all -- so P10 rises even as the median falls. */
+      const volGlideBase = { ...CHECK_BASE, rateLow: -13.5, rateHigh: 27.5, fatTails: false };
+      const mcFlatBand = runMonteCarlo(volGlideBase, CHECK_RUNS);
+      const mcGlided = runMonteCarlo({ ...volGlideBase, glideEnabled: true, glideEndRate: 5, glideEndLow: -5, glideEndHigh: 15 }, CHECK_RUNS);
+      const lastOf = (a) => a[a.length - 1];
+      add("The simulation follows the glide, not just the projection",
+        lastOf(mcGlided.p50) < lastOf(mcFlatBand.p50),
+        `${money(lastOf(mcGlided.p50))} < ${money(lastOf(mcFlatBand.p50))}`);
+      add("Gliding into a narrower band narrows the outcome",
+        (lastOf(mcGlided.p90) - lastOf(mcGlided.p10)) < (lastOf(mcFlatBand.p90) - lastOf(mcFlatBand.p10)),
+        `${money(lastOf(mcGlided.p90) - lastOf(mcGlided.p10))} vs ${money(lastOf(mcFlatBand.p90) - lastOf(mcFlatBand.p10))}`);
+
+      /* --- Coordinated household drawdown ---
+         Driven through walkMonths directly with a stub coordinator, so these test
+         the ordering machinery itself rather than whatever accounts happen to exist. */
+      const hhStub = (monthly, months) => {
+        const need = new Float64Array(months + 1);
+        const base = new Float64Array(months + 1);
+        for (let m = 1; m <= months; m++) base[m] = monthly;
+        let covered = 0;
+        return {
+          retireAtYear: 0,
+          reset() { need.set(base); covered = 0; },
+          needFor(m) { return need[m] || 0; },
+          covered(m, amt) { const t = Math.min(need[m] || 0, Math.max(0, amt)); need[m] -= t; covered += t; },
+          totalCovered() { return covered; },
+          outstanding() { let s = 0; for (let m = 1; m <= months; m++) s += need[m]; return s; }
+        };
+      };
+      const hhRun = (params, hh) => {
+        const p = normalizeRunParams(params);
+        return walkMonths(p, {}, () => 0, null, hh);
+      };
+      const potBase = { ...CHECK_BASE, principal: 120000, contribAmt: 0, years: 10, aprPercent: 0 };
+
+      // A single pot with no growth covers exactly its balance and no more.
+      const hh1 = hhStub(2000, 120); hh1.reset();
+      const solo = hhRun(potBase, hh1);
+      add("A coordinated pot pays out until it is empty",
+        Math.abs(hh1.totalCovered() - 120000) < 1e-6 && Math.abs(solo.balance) < 1e-6,
+        `${money(hh1.totalCovered())} of ${money(240000)} needed`);
+
+      /* Two pots, run in order: the first is drained before the second is touched.
+         120,000 at 2,000 a month is 60 months, so the second still holds its full
+         balance at that point and the pair together cover the whole need. */
+      const hh2 = hhStub(2000, 120); hh2.reset();
+      const first = hhRun(potBase, hh2);
+      const second = hhRun({ ...potBase, principal: 200000 }, hh2);
+      add("Accounts are drawn one after another, not all at once",
+        Math.abs(first.balance) < 1e-6 && Math.abs(second.balance - 80000) < 1e-6,
+        `first ${money(first.balance)}, second ${money(second.balance)}`);
+      add("Coordinated spending is met in full while the money lasts",
+        Math.abs(hh2.outstanding()) < 1e-6, money(hh2.outstanding()) + " unmet");
+
+      /* A pre-tax pot has to hand over the tax as well, so it covers less spending
+         than a Roth pot holding exactly the same balance. */
+      const hhRoth = hhStub(2000, 120); hhRoth.reset();
+      hhRun({ ...potBase, taxType: "roth" }, hhRoth);
+      const hhTrad = hhStub(2000, 120); hhTrad.reset();
+      hhRun({ ...potBase, taxType: "traditional", retireTaxPct: 0.25 }, hhTrad);
+      add("A pre-tax pot funds less spending than a Roth of the same size",
+        hhTrad.totalCovered() < hhRoth.totalCovered() - 1,
+        `${money(hhTrad.totalCovered())} < ${money(hhRoth.totalCovered())}`);
+      // 120,000 pre-tax at 25% is 90,000 spendable, and the arithmetic must be exact.
+      add("Pre-tax spending power is the balance net of tax",
+        Math.abs(hhTrad.totalCovered() - 90000) < 1e-6, money(hhTrad.totalCovered()));
+
+      /* Nothing is drawn before the household's retirement year. The amount is kept
+         small enough that the pot survives either way, so the check distinguishes a
+         working gate (60 months drawn, 60,000 left) from a broken one (120 months
+         drawn, nothing left) rather than passing on a pot that empties regardless. */
+      const hhLate = hhStub(1000, 120);
+      hhLate.reset();
+      hhLate.retireAtYear = 5;
+      const late = hhRun(potBase, hhLate);
+      add("Nothing is drawn before the household retires",
+        Math.abs(late.balance - 60000) < 1e-6 && Math.abs(hhLate.totalCovered() - 60000) < 1e-6,
+        `${money(late.balance)} left, ${money(hhLate.totalCovered())} paid`);
+
+      // Draw order is by tax treatment, whatever order the accounts were made in.
+      const orderOf = (types) => {
+        const saved = appState.accounts;
+        appState.accounts = types.map((t, i) => ({ id: "o" + i, name: t, state: { ui: { taxType: t } } }));
+        const got = accountsInDrawOrder().map(a => a.name).join(",");
+        appState.accounts = saved;
+        return got;
+      };
+      add("Draw order is taxable, then pre-tax, then Roth",
+        orderOf(["roth", "traditional", "taxable"]) === "taxable,traditional,roth",
+        orderOf(["roth", "traditional", "taxable"]));
+
+      // --- Monte Carlo ---
+      const mcParams = { ...CHECK_BASE, rateLow: 7, rateHigh: 7, fatTails: false };
+      const flatMC = runMonteCarlo(mcParams, CHECK_RUNS);
+      const flatEnd = flatMC.p50[flatMC.p50.length - 1];
+      add("With no spread, simulation equals the projection", rel(flatEnd, base.ending) < 1e-9,
+        `${money(flatEnd)} vs ${money(base.ending)}`);
+      add("With no spread there is no band",
+        Math.abs(flatMC.p90[flatMC.p90.length - 1] - flatMC.p10[flatMC.p10.length - 1]) < 1e-6, "band width 0");
+
+      const flatClustered = runMonteCarlo({ ...mcParams, fatTails: true }, CHECK_RUNS);
+      add("Clustering with no volatility is a no-op",
+        rel(flatClustered.p50[flatClustered.p50.length - 1], base.ending) < 1e-9,
+        money(flatClustered.p50[flatClustered.p50.length - 1]));
+
+      const volParams = { ...CHECK_BASE, rateLow: -13.5, rateHigh: 27.5, fatTails: false };
+      const volMC = runMonteCarlo(volParams, CHECK_RUNS);
+      const last = (a) => a[a.length - 1];
+      add("Percentiles come out in order", last(volMC.p10) < last(volMC.p50) && last(volMC.p50) < last(volMC.p90),
+        `${money(last(volMC.p10))} / ${money(last(volMC.p50))} / ${money(last(volMC.p90))}`);
+      // Returns are moment-matched, so the average trial must sit on the
+      // deterministic line. 400 trials is a wide tolerance; this catches drift.
+      add("Average trial tracks the projection", rel(volMC.meanEnding, base.ending) < 0.10,
+        `${money(volMC.meanEnding)} vs ${money(base.ending)} (${(rel(volMC.meanEnding, base.ending) * 100).toFixed(1)}%)`);
+      add("Median sits below the mean (volatility drag)", last(volMC.p50) < volMC.meanEnding,
+        `${money(last(volMC.p50))} < ${money(volMC.meanEnding)}`);
+      add("Lognormal returns never wipe a portfolio out", last(volMC.p10) > 0, money(last(volMC.p10)));
+
+      // Same shocks either way now, so this is a like-for-like comparison.
+      const clusteredMC = runMonteCarlo({ ...volParams, fatTails: true }, CHECK_RUNS);
+      add("Clustering redistributes without changing the average",
+        rel(clusteredMC.meanEnding, volMC.meanEnding) < 0.08,
+        `${money(clusteredMC.meanEnding)} vs ${money(volMC.meanEnding)} (${(rel(clusteredMC.meanEnding, volMC.meanEnding) * 100).toFixed(1)}%)`);
+      add("Clustering widens the downside",
+        last(clusteredMC.p10) < last(volMC.p10),
+        `P10 ${money(last(clusteredMC.p10))} vs ${money(last(volMC.p10))}`);
+
+      // --- Combined accounts ---
+      const savedAccounts = appState.accounts;
+      const savedActive = appState.activeAccountId;
+      try {
+        const mkAccount = (name, principal, rate) => ({
+          id: "chk_" + name, name,
+          state: { ui: { ...appState.ui, principal, rateBase: rate, yearsRaw: 30, horizonUnit: "years",
+            retireEnabled: false, taxEnabled: false, feeRate: 0, mcEnabled: false },
+            milestonesEnabled: false, milestones: [], incomes: [], scenarios: [],
+            activeScenarioId: null, chainMode: false, simpleSnapshot: null }
+        });
+        appState.accounts = [mkAccount("A", 100000, 7), mkAccount("B", 50000, 5)];
+        appState.activeAccountId = ALL_ACCOUNTS;
+        const combined = computeCombinedDeterministic();
+        const partsSum = combined.perAccount.reduce((acc, p) => acc + p.out.ending, 0);
+        add("Combined total equals the sum of its accounts",
+          rel(combined.ending, partsSum) < 1e-9, `${money(combined.ending)} = ${money(partsSum)}`);
+        add("Combined starting capital counts every account",
+          Math.abs(combined.combinedPrincipal - 150000) < 1e-6, money(combined.combinedPrincipal));
+      } finally {
+        appState.accounts = savedAccounts;
+        appState.activeAccountId = savedActive;
+      }
+    } catch (err) {
+      add("Checks ran without throwing", false, String(err && err.message ? err.message : err));
+    }
+
+    return out;
+  }
+
+  function renderModelChecks() {
+    const wrap = $("checksList");
+    const summary = $("checksSummary");
+    const card = $("checksCard");
+    if (!wrap || !summary || !card) return;
+
+    const started = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    const results = runModelChecks();
+    const took = ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now()) - started;
+    const failed = results.filter(r => !r.pass);
+
+    summary.textContent = failed.length === 0
+      ? `All ${results.length} checks passed (${Math.round(took)}ms)`
+      : `${failed.length} of ${results.length} checks FAILED`;
+    summary.className = "checksSummary " + (failed.length === 0 ? "isPass" : "isFail");
+    card.classList.toggle("hasFailure", failed.length > 0);
+    // A failure opens itself; passing checks stay out of the way.
+    if (failed.length > 0) $("checksDetails").open = true;
+
+    wrap.innerHTML = results.map(r => `
+      <div class="checkRow ${r.pass ? "" : "isFail"}">
+        <span class="checkMark">${r.pass ? "&#10003;" : "&#10007;"}</span>
+        <span class="checkName">${escapeHtml(r.name)}</span>
+        <span class="checkDetail">${escapeHtml(r.detail || "")}</span>
+      </div>
+    `).join("");
+  }
+
+  /* ---- Sensitivity ------------------------------------------------------
+     Which assumption is actually carrying the answer? Each is moved across a
+     plausible range on its own, everything else held still, and the rows are
+     ranked by how far the outcome travels.
+
+     The ranges are deliberately NOT a flat +/-X% on everything. Twenty percent of
+     a 7% return is an enormous move; twenty percent of a 0.2% fee is nothing, and
+     a zero fee could not be varied at all. Each input is instead moved across the
+     range it is genuinely uncertain over -- which is the comparison worth seeing,
+     but it does mean the ranking depends on those ranges, so every row states the
+     one it used. */
+
+  function buildSensitivity() {
+    const ui = appState.ui;
+    const years = getActiveYears();
+    if (!(years > 0)) return null;
+
+    const baseParams = {
+      principal: ui.principal,
+      contribAmt: ui.contrib,
+      contribFreq: ui.contribFreq,
+      years,
+      aprPercent: ui.rateBase,
+      contribIncreasePct: ui.contribIncrease / 100,
+      maxMonthlyContrib: ui.maxContrib,
+      milestones: appState.milestonesEnabled ? normalizeMilestonesFrom(years, getMilestoneRunList()) : [],
+      taxPct: ui.taxEnabled ? ui.taxRate / 100 : 0,
+      retireEnabled: ui.retireEnabled,
+      retireAtYear: ui.retireAtYear,
+      withdrawMonthly: ui.withdrawMonthly,
+      inflationPct: ui.inflationRate / 100,
+      withdrawIndexToInflation: ui.withdrawInflationToggle,
+      ...modelExtrasFromUI(ui),
+      contribStartMonth: 1
+    };
+
+    /* Read each variant through the same lens the page is using, so with "today's
+       dollars" on, inflation shows up as the real factor it is.
+       Measured after deferred tax, which is identical to the raw balance for a
+       taxable or Roth account and is the only honest yardstick for a pre-tax one --
+       otherwise the retirement rate would rank as having no effect at all, when in
+       fact it decides what a fifth of the balance is worth. */
+    const endingFor = (overrides) => {
+      const p = { ...baseParams, ...overrides };
+      const out = computeDeterministic(p);
+      const value = num(out.afterTaxEnding, out.ending);
+      return ui.realMode ? discountValue(value, p.years, p.inflationPct) : value;
+    };
+
+    const base = endingFor({});
+    const factors = [];
+    const add = (label, note, lowOv, highOv) => {
+      const low = endingFor(lowOv);
+      const high = endingFor(highOv);
+      factors.push({ label, note, low, high, swing: Math.abs(high - low) });
+    };
+    const pctText = (v) => `${(Math.round(v * 100) / 100)}%`;
+
+    add(ui.glideEnabled ? "Expected return today" : "Expected return",
+      `${pctText(Math.max(0, ui.rateBase - 1.5))} to ${pctText(ui.rateBase + 1.5)}`,
+      { aprPercent: Math.max(0, ui.rateBase - 1.5) }, { aprPercent: ui.rateBase + 1.5 });
+
+    // With a glide on, the headline rate is only where the plan starts, so the rate
+    // it lands on is a second, separate lever worth ranking beside it.
+    if (ui.glideEnabled) {
+      const gLo = Math.max(0, num(ui.glideEndRate, 0) - 1.5);
+      const gHi = num(ui.glideEndRate, 0) + 1.5;
+      add("Return once de-risked", `${pctText(gLo)} to ${pctText(gHi)}`,
+        { glideEndRate: gLo }, { glideEndRate: gHi });
+    }
+
+    add("Contribution", "25% less to 25% more",
+      { contribAmt: ui.contrib * 0.75 }, { contribAmt: ui.contrib * 1.25 });
+
+    add("Starting amount", "10% less to 10% more",
+      { principal: ui.principal * 0.9 }, { principal: ui.principal * 1.1 });
+
+    const loY = Math.max(1, years - 5);
+    add("Time horizon", `${Math.round(loY)} to ${Math.round(years + 5)} years`,
+      { years: loY }, { years: years + 5 });
+
+    const feeLo = Math.max(0, num(ui.feeRate, 0) - 0.35);
+    const feeHi = num(ui.feeRate, 0) + 0.35;
+    add("Annual fee", `${pctText(feeLo)} to ${pctText(feeHi)}`, { feePct: feeLo }, { feePct: feeHi });
+
+    add("Annual raise to contribution",
+      `${pctText(Math.max(0, ui.contribIncrease - 1))} to ${pctText(ui.contribIncrease + 1)}`,
+      { contribIncreasePct: Math.max(0, ui.contribIncrease - 1) / 100 },
+      { contribIncreasePct: (ui.contribIncrease + 1) / 100 });
+
+    // Each treatment has exactly one rate that bites, so only that one is offered.
+    if (ui.taxEnabled && (ui.taxType || "taxable") === "taxable") {
+      add("Tax on gains",
+        `${pctText(Math.max(0, ui.taxRate - 10))} to ${pctText(Math.min(100, ui.taxRate + 10))}`,
+        { taxPct: Math.max(0, ui.taxRate - 10) / 100 },
+        { taxPct: Math.min(100, ui.taxRate + 10) / 100 });
+    }
+
+    if ((ui.taxType || "taxable") === "traditional") {
+      const rtLo = Math.max(0, num(ui.retireTaxRate, 22) - 5);
+      const rtHi = Math.min(95, num(ui.retireTaxRate, 22) + 5);
+      add("Your tax rate in retirement", `${pctText(rtLo)} to ${pctText(rtHi)}`,
+        { retireTaxPct: rtLo / 100 }, { retireTaxPct: rtHi / 100 });
+    }
+
+    const incomes = Array.isArray(appState.incomes) ? appState.incomes : [];
+    // Inflation only reaches the model through indexed withdrawals and income, so
+    // it is offered when it can actually bite, or when the lens is today's dollars.
+    if (ui.realMode || ui.retireEnabled || incomes.length) {
+      const infLo = Math.max(0, ui.inflationRate - 1);
+      const infHi = ui.inflationRate + 1;
+      add("Inflation", `${pctText(infLo)} to ${pctText(infHi)}`,
+        { inflationPct: infLo / 100 }, { inflationPct: infHi / 100 });
+    }
+
+    if (ui.retireEnabled && ui.withdrawMonthly > 0) {
+      add("Monthly withdrawal", "20% less to 20% more",
+        { withdrawMonthly: ui.withdrawMonthly * 0.8 }, { withdrawMonthly: ui.withdrawMonthly * 1.2 });
+    }
+
+    if (incomes.length) {
+      const scaled = (f) => incomes.map(i => ({ ...i, amount: num(i.amount, 0) * f }));
+      add("Other income", "20% less to 20% more",
+        { incomes: scaled(0.8) }, { incomes: scaled(1.2) });
+    }
+
+    factors.sort((a, b) => b.swing - a.swing);
+    return {
+      base,
+      factors,
+      realMode: !!ui.realMode,
+      afterTax: (ui.taxType || "taxable") === "traditional" && num(ui.retireTaxRate, 0) > 0
+    };
+  }
+
+  function renderSensitivity() {
+    const wrap = $("sensList");
+    const card = $("sensCard");
+    const note = $("sensNote");
+    if (!wrap || !card) return;
+
+    // A single plan is the unit of analysis; combined and chained views have no
+    // one set of inputs to vary.
+    const allView = isAllAccountsView();
+    const chainActive = appState.chainMode && appState.scenarios.length > 0;
+    if (allView || chainActive) {
+      wrap.innerHTML = "";
+      if (note) note.textContent = allView
+        ? "Switch to a single account to see which of its assumptions matter."
+        : "Turn off chained scenarios to test a single plan's assumptions.";
+      return;
+    }
+
+    const data = buildSensitivity();
+    if (!data || !data.factors.length) { wrap.innerHTML = ""; return; }
+    if (note) {
+      // Say so when the yardstick is not the number shown at the top of the page,
+      // otherwise the middle line looks like it disagrees with the projection.
+      const lens = [
+        data.realMode ? "in today's dollars" : "",
+        data.afterTax ? "after the tax owed on withdrawal" : ""
+      ].filter(Boolean).join(", ");
+      note.textContent = `Each assumption moved on its own from the middle line, which is the current projection of ${fmt0.format(data.base)}${lens ? " " + lens : ""}.`;
+    }
+
+    const maxDelta = Math.max(1, ...data.factors.map(f =>
+      Math.max(Math.abs(f.low - data.base), Math.abs(f.high - data.base))));
+
+    wrap.innerHTML = data.factors.map(f => {
+      const dLow = f.low - data.base;
+      const dHigh = f.high - data.base;
+      const negSpan = Math.abs(Math.min(0, Math.min(dLow, dHigh)));
+      const posSpan = Math.max(0, Math.max(dLow, dHigh));
+      const negPct = (negSpan / maxDelta) * 50;
+      const posPct = (posSpan / maxDelta) * 50;
+      const swingPct = data.base > 0 ? (f.swing / data.base) * 100 : 0;
+      return `<div class="sensRow">
+        <div class="sensFactor">
+          <div class="sensLabel">${escapeHtml(f.label)}</div>
+          <div class="sensNote">${escapeHtml(f.note)}</div>
+        </div>
+        <div class="sensTrack">
+          <div class="sensBar low" style="left:${(50 - negPct).toFixed(2)}%; width:${negPct.toFixed(2)}%"></div>
+          <div class="sensBar high" style="left:50%; width:${posPct.toFixed(2)}%"></div>
+          <div class="sensCenter"></div>
+        </div>
+        <div class="sensSwing">
+          <div class="sensSwingValue">${fmt0.format(f.swing)}</div>
+          <div class="sensNote">${swingPct.toFixed(0)}% of plan</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
   function bindEvents() {
     const inputIds = [
       "principal","rateBase","contrib","contribIncrease","maxContrib","years","rateLow","rateHigh",
       "inflationRate","taxRate","targetBalance","targetYears","retireAtYear","withdrawMonthly","delayYears","startAge","retireAge",
-      "feeRate","withdrawPercent","withdrawCapPct"
+      "feeRate","withdrawPercent","withdrawCapPct","retireTaxRate",
+      "glideEndRate","glideEndLow","glideEndHigh"
     ];
     inputIds.forEach(id => {
       const el = $(id);
@@ -6627,7 +8073,7 @@
       });
     });
 
-    const selectIds = ["contribFreq","horizonUnit","withdrawMode"];
+    const selectIds = ["contribFreq","horizonUnit","withdrawMode","taxType"];
     selectIds.forEach(id => {
       const el = $(id);
       if (el) el.addEventListener("change", () => {
@@ -6638,7 +8084,8 @@
 
     const toggleIds = [
       "simpleToggle","realToggle","taxToggle","goalToggle","retireToggle","delayToggle",
-      "mcToggle","milestonesToggle","chainScenariosToggle","logScaleToggle","fatTailsToggle"
+      "mcToggle","milestonesToggle","chainScenariosToggle","logScaleToggle","fatTailsToggle",
+      "glideToggle"
     ];
     toggleIds.forEach(id => {
       const el = $(id);
@@ -6742,6 +8189,15 @@
     const saveBtn = $("saveScenario");
     if (saveBtn) saveBtn.addEventListener("click", saveScenario);
 
+    // Compute on open rather than on every recalculation.
+    const sensDetails = $("sensDetails");
+    if (sensDetails) sensDetails.addEventListener("toggle", () => {
+      if (sensDetails.open) renderSensitivity();
+    });
+
+    const rerunBtn = $("rerunChecks");
+    if (rerunBtn) rerunBtn.addEventListener("click", renderModelChecks);
+
     const resetBtn = $("resetAll");
     if (resetBtn) {
       let armedTimer = null;
@@ -6811,6 +8267,29 @@
         calculate();
       });
     }
+
+    // Purely a display lens over the same run, so it redraws rather than recomputes.
+    const afterTax = $("afterTaxToggle");
+    if (afterTax) {
+      afterTax.addEventListener("change", () => calculate());
+    }
+
+    /* Household spending lives beside the accounts rather than inside any of them,
+       so it is read straight into appState here instead of going through the field
+       registry, which describes one account's plan. */
+    const hhToggle = $("householdToggle");
+    if (hhToggle) hhToggle.addEventListener("change", () => {
+      appState.household.enabled = !!hhToggle.checked;
+      calculate();
+    });
+    [["householdMonthly", "monthly"], ["householdRetireYear", "retireAtYear"]].forEach(([id, key]) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", () => {
+        appState.household[key] = Math.max(0, num(el.value, 0));
+        scheduleCalculate(appState.ui.mcEnabled ? MC_INPUT_DEBOUNCE_MS : 0);
+      });
+    });
 
     const tableClose = $("dataTableClose");
     if (tableClose) tableClose.addEventListener("click", () => {
@@ -6951,6 +8430,14 @@
     if (restored) renderComparisonTable();
     calculate();
     initChartInteractions();
+    // Deferred: the checks run several simulations, and the projection should be
+    // on screen first.
+    const startChecks = () => renderModelChecks();
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(startChecks, { timeout: 1500 });
+    } else {
+      setTimeout(startChecks, 400);
+    }
     const params = new URLSearchParams(window.location.search);
     if (params.get("selftest") === "1") runSelfTests();
   });
