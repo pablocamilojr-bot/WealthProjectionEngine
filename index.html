@@ -187,6 +187,9 @@
     grid-template-columns:repeat(2,minmax(0,1fr));
     gap:12px 14px;
   }
+  /* display:grid outranks the hidden attribute's display:none, so a grid marked
+     hidden stays on screen unless this says otherwise. */
+  .inputGrid[hidden]{ display:none; }
   label{
     font-size:12px;
     font-weight:500;
@@ -1599,6 +1602,12 @@
         </div>
         <div class="hint" id="householdHint"></div>
       </div>
+      <div class="afterTaxBar" id="horizonBar">
+        <label>Look further ahead
+          <span class="field" data-suffix="yr"><input id="householdExtraYears" type="number" inputmode="decimal" min="0" max="60" step="5" value="0"></span>
+        </label>
+        <div class="hint" id="horizonHint"></div>
+      </div>
       <div id="breakdownList"></div>
       <div class="afterTaxBar" id="afterTaxBar" hidden>
         <label class="toggle"><input id="afterTaxToggle" type="checkbox"> Show what you get to keep</label>
@@ -2236,7 +2245,7 @@
     },
     /* Household-level, not per-account: one person spending from several pots.
        Lives beside `accounts` rather than inside any of them. */
-    household: { enabled: false, monthly: 4000, retireAtYear: 20 },
+    household: { enabled: false, monthly: 4000, retireAtYear: 20, extraYears: 0 },
     _simpleSnapshot: null,
     _milestoneViewCache: []
   };
@@ -2577,7 +2586,8 @@
       appState.household = {
         enabled: !!saved.household.enabled,
         monthly: Math.max(0, num(saved.household.monthly, 4000)),
-        retireAtYear: Math.max(0, Math.round(num(saved.household.retireAtYear, 20)))
+        retireAtYear: Math.max(0, Math.round(num(saved.household.retireAtYear, 20))),
+        extraYears: clamp(num(saved.household.extraYears, 0), 0, MAX_EXTRA_YEARS)
       };
     }
     const wantsAll = saved.activeAccountId === ALL_ACCOUNTS && accounts.length > 0;
@@ -5637,9 +5647,15 @@
       p90: data.p90 || null
     };
 
+    /* A series that has been switched off in the legend no longer sets the scale.
+       Every charting tool behaves this way, and here it matters more than usual:
+       over a long drawdown net contributions runs deeply negative -- withdrawals
+       cumulatively exceed everything ever paid in -- which drags the axis floor
+       far below zero and squashes the balance line, the one thing being read,
+       into the top of the plot. Hiding it now lets the balance fill the chart. */
     const values = [];
     if (data.baseSeries) values.push(...data.baseSeries);
-    if (!isMC && data.netContribSeries) values.push(...data.netContribSeries);
+    if (!isMC && data.netContribSeries && !dimmed.net) values.push(...data.netContribSeries);
     if (data.p10) values.push(...data.p10);
     if (data.p50) values.push(...data.p50);
     if (data.p90) values.push(...data.p90);
@@ -7077,6 +7093,18 @@
 
   // Each account keeps its own settings but is run out to the longest horizon, so
   // the total is a like-for-like picture over one shared timeline.
+  const MAX_EXTRA_YEARS = 60;
+
+  /* The longest account's own horizon, plus however far past it the combined view
+     has been asked to look.
+
+     The extension exists because the accumulation horizon and the question "does
+     this last?" are different lengths. Saving for 30 years and then living 30 more
+     off the result is an ordinary shape for a plan, and without this the chart
+     stopped on the day the spending started -- exactly where it got interesting.
+
+     Each account is projected out to whatever this returns under its own settings,
+     which is machinery that already existed for accounts of differing lengths. */
   function combinedHorizonYears() {
     let maxY = 0;
     appState.accounts.forEach(a => {
@@ -7085,7 +7113,8 @@
       const yrs = (ui.horizonUnit === "months") ? raw / 12 : raw;
       if (yrs > maxY) maxY = yrs;
     });
-    return maxY;
+    if (!(maxY > 0)) return 0;
+    return maxY + clamp(num(appState.household?.extraYears, 0), 0, MAX_EXTRA_YEARS);
   }
 
   function accountRunParams(acct, years) {
@@ -7459,6 +7488,24 @@
     if ($("householdMonthly")) $("householdMonthly").value = num(hh.monthly, 4000);
     if ($("householdRetireYear")) $("householdRetireYear").value = num(hh.retireAtYear, 20);
     if ($("householdFields")) $("householdFields").hidden = !hh.enabled;
+    if ($("householdExtraYears")) $("householdExtraYears").value = num(hh.extraYears, 0);
+    const horizonHint = $("horizonHint");
+    if (horizonHint) {
+      const extra = clamp(num(hh.extraYears, 0), 0, MAX_EXTRA_YEARS);
+      const ownMax = Math.round(years - extra);
+      if (extra > 0) {
+        /* Worth being explicit about what carries on into the extension, because it
+           is the one thing that is not obvious: each account keeps following its own
+           plan, so one still paying in will go on paying in unless something stops
+           it -- either its own retirement year or the household's. */
+        horizonHint.textContent = hh.enabled
+          ? `Running ${Math.round(years)} years: ${ownMax} from the accounts plus ${extra} more. Paying in stops when household spending starts in Year ${Math.round(num(hh.retireAtYear, 0))}.`
+          : `Running ${Math.round(years)} years: ${ownMax} from the accounts plus ${extra} more. Each account keeps following its own settings, so any still contributing will carry on unless its own retirement year stops it.`;
+      } else {
+        horizonHint.textContent = `Stops at Year ${ownMax}, the longest account's own horizon. Add years to follow the plan into retirement and see whether it lasts.`;
+      }
+    }
+
     const hhHint = $("householdHint");
     if (hhHint) {
       const info = combined.household;
@@ -7530,7 +7577,10 @@
         const ownYears = (acctUi.horizonUnit === "months") ? num(acctUi.yearsRaw, 0) / 12 : num(acctUi.yearsRaw, 0);
         return Math.round(ownYears) !== Math.round(years);
       });
-      note.textContent = mismatch
+      // The "look further ahead" control has its own hint covering the extension,
+      // so this only speaks to accounts whose own horizons genuinely differ.
+      const extendedBy = clamp(num(appState.household?.extraYears, 0), 0, MAX_EXTRA_YEARS);
+      note.textContent = (mismatch && extendedBy === 0)
         ? `Accounts have different horizons, so each one is projected out to the longest (${Math.round(years)} years) under its own settings.`
         : "";
     }
@@ -7782,6 +7832,26 @@
       add("Draw order is taxable, then pre-tax, then Roth",
         orderOf(["roth", "traditional", "taxable"]) === "taxable,traditional,roth",
         orderOf(["roth", "traditional", "taxable"]));
+
+      /* The combined view can run past the accounts' own horizons, and the extension
+         is clamped so a silly number cannot turn one keystroke into a million-month
+         simulation. Restores whatever was there, since this reads live state. */
+      const horizonWith = (extra) => {
+        const savedAccts = appState.accounts;
+        const savedHh = appState.household;
+        appState.accounts = [{ id: "h1", name: "h1", state: { ui: { yearsRaw: 30, horizonUnit: "years" } } }];
+        appState.household = { ...savedHh, extraYears: extra };
+        const got = combinedHorizonYears();
+        appState.accounts = savedAccts;
+        appState.household = savedHh;
+        return got;
+      };
+      add("The combined view can be extended past the accounts",
+        horizonWith(0) === 30 && horizonWith(40) === 70,
+        `${horizonWith(0)} then ${horizonWith(40)} years`);
+      add("The extension is capped rather than unbounded",
+        horizonWith(9999) === 30 + MAX_EXTRA_YEARS && horizonWith(-5) === 30,
+        `${horizonWith(9999)} years at most`);
 
       // --- Monte Carlo ---
       const mcParams = { ...CHECK_BASE, rateLow: 7, rateHigh: 7, fatTails: false };
@@ -8302,6 +8372,12 @@
         appState.household[key] = Math.max(0, num(el.value, 0));
         scheduleCalculate(appState.ui.mcEnabled ? MC_INPUT_DEBOUNCE_MS : 0);
       });
+    });
+    const extraYears = $("householdExtraYears");
+    if (extraYears) extraYears.addEventListener("input", () => {
+      appState.household.extraYears = clamp(num(extraYears.value, 0), 0, MAX_EXTRA_YEARS);
+      // Always debounced: this one multiplies the work every trial has to do.
+      scheduleCalculate(MC_INPUT_DEBOUNCE_MS);
     });
 
     const tableClose = $("dataTableClose");
