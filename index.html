@@ -5465,9 +5465,15 @@
          kept but ignored on a sheltered account, so reading it here would label a
          Roth projection with a drag it never paid. */
       const acctTaxType = ui.taxType || "taxable";
-      const taxLens = (acctTaxType === "taxable")
+      const perAccountTaxLens = (acctTaxType === "taxable")
         ? (ui.taxEnabled ? ` | Tax ${ui.taxRate}%` : "")
         : (acctTaxType === "traditional" ? ` | Pre-tax, ${num(ui.retireTaxRate, 0)}% on withdrawal` : " | Roth");
+      /* In the combined view appState.ui mirrors whichever account was last active,
+         so naming its treatment would label a three-pot total "Roth" on the strength
+         of one of them. Each account's treatment is named in the breakdown instead. */
+      const taxLens = allView
+        ? (appState.household?.enabled ? " | Spending in tax order" : "")
+        : perAccountTaxLens;
       const lens = (ui.realMode ? ` | Today's dollars (${ui.inflationRate}%)` : "") + taxLens;
       if (mcEnabled && mcData) {
         pill.textContent = `${Math.round(years)} Year Outcome (P50) | P10-P90: ${fmt0.format(discountValue(mcData.p10[mcData.p10.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))} to ${fmt0.format(discountValue(mcData.p90[mcData.p90.length - 1], years, ui.realMode ? ui.inflationRate/100 : 0))}${lens}`;
@@ -7302,8 +7308,15 @@
       growthSeriesYearly,
       scheduleMonthly,
       eventInfoYearly,
-      crossoverYear: cross.year,
-      crossoverText: cross.year === null ? "" : `Growth surpasses contributions in Year ${cross.year}`,
+      /* Suppressed while the household is spending, matching the rule a single
+         account already applies in retirement: "growth overtakes contributions" is
+         a saving-phase milestone and reads as reassurance on a plan that is in fact
+         being drawn down. The accounts themselves have no retirement flag set in
+         household mode, so this has to be decided here. */
+      crossoverYear: household ? null : cross.year,
+      crossoverText: (household || cross.year === null)
+        ? ""
+        : `Growth surpasses contributions in Year ${cross.year}`,
       depletionYear: household ? shortfallYear : depletionYear,
       depletionText: household
         ? (shortfallYear === null ? "" : `Spending cannot be met in full from Year ${shortfallYear}`)
