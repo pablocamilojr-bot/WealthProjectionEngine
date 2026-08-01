@@ -427,6 +427,101 @@
     border-radius:999px;
     padding:2px 9px;
   }
+  /* ---- Ask Claude panel ---- */
+  .askSetup{
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:13px;
+    background:var(--surface-2);
+    margin:10px 0;
+  }
+  .askSetup[hidden]{ display:none; }
+  .askWarn{
+    margin-top:8px;
+    font-size:11px;
+    line-height:1.5;
+    color:#8a5a12;
+    background:rgba(245,158,11,0.10);
+    border:1px solid rgba(245,158,11,0.30);
+    border-radius:10px;
+    padding:7px 9px;
+  }
+  .askThread{
+    margin:10px 0;
+    max-height:420px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .askThread:empty{ display:none; }
+  .askMsg{
+    padding:9px 12px;
+    border-radius:13px;
+    font-size:13px;
+    line-height:1.55;
+    max-width:92%;
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+  }
+  .askMsg.isUser{
+    align-self:flex-end;
+    background:var(--brand-deep,#0276dd);
+    color:#fff;
+  }
+  .askMsg.isClaude{
+    align-self:flex-start;
+    background:#fff;
+    border:1px solid var(--border);
+    color:var(--text);
+  }
+  .askMsg.isError{
+    align-self:stretch;
+    max-width:100%;
+    background:rgba(220,38,38,0.06);
+    border:1px solid rgba(220,38,38,0.3);
+    color:#8d1c1c;
+  }
+  /* What Claude did to the calculator, so a changed number is never unexplained. */
+  .askActions{
+    align-self:flex-start;
+    max-width:92%;
+    font-size:11px;
+    color:var(--muted);
+    background:var(--surface-2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:6px 10px;
+  }
+  .askActions b{ color:#3d5875; font-weight:600; }
+  .askComposeRow{
+    display:flex;
+    gap:8px;
+    align-items:flex-end;
+  }
+  .askInput{
+    flex:1;
+    resize:vertical;
+    min-height:44px;
+    font-family:inherit;
+    font-size:13px;
+    padding:10px 12px;
+    border:1px solid var(--border);
+    border-radius:12px;
+    background:#fff;
+    color:var(--text);
+  }
+  .askDot{
+    display:inline-block;
+    width:6px; height:6px;
+    margin-right:5px;
+    border-radius:50%;
+    background:var(--brand,#22a8fd);
+    animation:askPulse 1s ease-in-out infinite;
+  }
+  @keyframes askPulse{ 0%,100%{opacity:0.25} 50%{opacity:1} }
+  @media (prefers-reduced-motion: reduce){ .askDot{ animation:none; opacity:0.8; } }
+
   .sensList{ margin:10px 0 12px; }
   .sensRow{
     display:grid;
@@ -2038,6 +2133,43 @@
       <span class="mutedSmall" id="chainHint">Save at least two scenarios to chain them.</span>
     </div>
     <div class="chainNotice" id="chainNotice" hidden></div>
+  </section>
+
+  <section class="card askCard" id="askCard">
+    <details id="askDetails">
+      <summary>
+        <span class="checksTitle">Ask Claude</span>
+        <span class="sensHint">describe it in words</span>
+      </summary>
+
+      <div class="askSetup" id="askSetup">
+        <div class="hint" id="askSetupHint"></div>
+        <div class="inlineRow" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <span class="field" style="flex:1 1 260px;">
+            <input id="askKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+          </span>
+          <button id="askSaveKey" type="button" class="secondary">Save key</button>
+          <button id="askClearKey" type="button" class="secondary" hidden>Forget key</button>
+        </div>
+        <div class="askWarn">
+          Your key is stored in this browser only, unencrypted, and is never sent anywhere except
+          Anthropic. Anyone who can open this browser profile can read it. If you share this file with
+          someone, they need their own key &mdash; do not send them yours.
+        </div>
+      </div>
+
+      <div id="askThread" class="askThread" role="log" aria-live="polite" aria-label="Conversation with Claude"></div>
+
+      <div class="askComposeRow">
+        <textarea id="askInput" class="askInput" rows="2" placeholder="e.g. I'm 34, have 80k in my 403b and put in 600 a month. Can I retire at 62 on 4,000 a month?"></textarea>
+        <button id="askSend" type="button">Ask</button>
+      </div>
+      <div class="inlineRow" style="justify-content:space-between; margin-top:8px;">
+        <span class="hint" id="askStatus"></span>
+        <button id="askReset" type="button" class="secondary">Clear chat</button>
+      </div>
+      <div class="hint">Claude reads and changes this calculator directly &mdash; every number it quotes comes from the same engine as the chart, not from the model's own arithmetic.</div>
+    </details>
   </section>
 
   <section class="card sensCard" id="sensCard">
@@ -8475,6 +8607,594 @@
     }).join("");
   }
 
+  /* ---- Ask Claude -------------------------------------------------------
+     A chat panel where a plan can be described in words. Claude does not do the
+     arithmetic -- it drives this calculator through tools and reads the answer
+     back out, so every figure it quotes comes from the same engine as the chart.
+     That is the whole point: a language model asked to compound interest in its
+     head is guessing, and the guess looks exactly like the real number.
+
+     No SDK here on purpose. This file has no build step and runs from a local
+     copy with no network of its own, so the API is called over plain fetch. */
+
+  const ASK_ENDPOINT = "https://api.anthropic.com/v1/messages";
+  const ASK_MODEL = "claude-opus-5";
+  const ASK_KEY_STORE = "compoundInterestCalculator.apiKey";
+  const ASK_MAX_STEPS = 8;
+
+  /* Fields the assistant is allowed to set, described in the words someone would
+     actually use. Types come from the field registry, so these cannot drift from
+     what the inputs accept. */
+  const ASK_FIELDS = [
+    ["principal", "Money already in this account today"],
+    ["contrib", "Amount paid in each period"],
+    ["contribFreq", "How often money is paid in: monthly or annual"],
+    ["contribIncrease", "Percent the contribution rises each year"],
+    ["rateBase", "Expected return, percent a year"],
+    ["yearsRaw", "How many years the projection runs"],
+    ["taxType", "Tax treatment: taxable, traditional (pre-tax, e.g. 401k or 403b), or roth"],
+    ["retireTaxRate", "Percent tax paid on money coming out of a pre-tax account"],
+    ["taxEnabled", "Whether a taxable account pays tax on gains as they arise"],
+    ["taxRate", "Percent tax on gains, for a taxable account"],
+    ["feeRate", "Annual fee on assets, percent"],
+    ["realMode", "Show every figure in today's dollars"],
+    ["inflationRate", "Inflation, percent a year"],
+    ["retireEnabled", "Whether this account starts paying out at some point"],
+    ["retireAtYear", "Year withdrawals begin"],
+    ["withdrawMonthly", "Monthly amount withdrawn"],
+    ["withdrawMode", "How the withdrawal behaves: indexed (rises with inflation), fixed (same cash), or percent (a share of the balance)"],
+    ["withdrawPercent", "Percent of the balance taken each year, for percent mode"],
+    ["withdrawCapPct", "Never take more than this percent of the balance in a year"],
+    ["mcEnabled", "Run the market simulation for a P10-P90 range and a survival rate"],
+    ["glideEnabled", "Shift toward safer holdings as retirement approaches"],
+    ["glideEndRate", "Expected return once de-risked, percent"]
+  ];
+
+  function askFieldSchema() {
+    const props = {};
+    ASK_FIELDS.forEach(([key, description]) => {
+      const f = UI_FIELDS.find(x => x.key === key);
+      if (!f) return;
+      const type = (f.kind === "bool") ? "boolean" : (f.kind === "num" ? "number" : "string");
+      props[key] = { type, description };
+    });
+    return props;
+  }
+
+  const ASK_TOOLS = [
+    {
+      name: "read_plan",
+      description: "Read the plan exactly as it currently stands, together with the projected result. Call this first, and again after any change, so every number you quote comes from the calculator rather than your own arithmetic.",
+      input_schema: { type: "object", properties: {} }
+    },
+    {
+      name: "update_plan",
+      description: "Change one or more settings on a single account, then recalculate. Only include the fields you actually want to change; everything else is left alone. Settings belong to one account at a time, so name the account whenever there is more than one.",
+      input_schema: {
+        type: "object",
+        properties: Object.assign(
+          { account: { type: "string", description: "Which account to change, by name. Defaults to the one being viewed." } },
+          askFieldSchema()
+        )
+      }
+    },
+    {
+      name: "add_account",
+      description: "Add a second (or third) account to the same profile, for example a Roth alongside a 403b. The new account starts empty and becomes the one being viewed, so follow this with update_plan to fill it in.",
+      input_schema: {
+        type: "object",
+        properties: { name: { type: "string", description: "What to call it, e.g. '403b' or 'Roth IRA'" } },
+        required: ["name"]
+      }
+    },
+    {
+      name: "set_household_spending",
+      description: "Switch to the combined view and spend one monthly amount across every account in tax order: taxable first, then pre-tax, and the Roth last. Use this when the question is about the household as a whole rather than one account.",
+      input_schema: {
+        type: "object",
+        properties: {
+          enabled: { type: "boolean", description: "Turn coordinated spending on or off" },
+          monthly: { type: "number", description: "Monthly spending the household needs" },
+          retireAtYear: { type: "number", description: "Year that spending starts" },
+          withdrawMode: { type: "string", description: "indexed, fixed, or percent" },
+          percent: { type: "number", description: "Share of the combined pot taken each year, for percent mode" },
+          extraYears: { type: "number", description: "Years to run past the accounts' own horizon, up to 60, to see whether the money lasts" }
+        }
+      }
+    },
+    {
+      name: "reset_plan",
+      description: "Erase everything and start from an empty plan. Only use this when the person clearly wants to start over.",
+      input_schema: { type: "object", properties: {} }
+    }
+  ];
+
+  const ASK_SYSTEM = [
+    "You are built into a wealth projection calculator and you drive it directly through tools.",
+    "",
+    "The one rule that matters: never do the arithmetic yourself. Compounding, drawdown, tax and fees",
+    "are all handled by the calculator's engine, which is tested and which the user can see. Set the",
+    "inputs with the tools, read the result back, and quote that. A figure you worked out in your head",
+    "looks identical to a real one and is not.",
+    "",
+    "Working style. Call read_plan first to see where things stand. Make the changes the person asked",
+    "for, read the result, then answer. Keep it to a few sentences: lead with the number, then the one",
+    "thing about it worth knowing. You do not need to list the settings you changed -- the interface",
+    "shows those already.",
+    "",
+    "Say what the projection actually shows, including when it is unwelcome. If a plan runs out of money,",
+    "say so and say when. If the simulation is on and the survival rate is poor, lead with that rather",
+    "than the median, because the median of a plan that fails half the time is not the story.",
+    "",
+    "You are a calculator, not an adviser. Describe what the model says and what drives it. Do not",
+    "recommend specific funds, products or providers, and do not tell the person what they should do with",
+    "their money. If they ask, say plainly that you can model options but not advise between them.",
+    "",
+    "Assumptions are the user's to make. If something essential is missing, either ask for it or state",
+    "the assumption you are using -- but do not silently invent a return rate or a horizon."
+  ].join("\n");
+
+  const askState = { messages: [], busy: false };
+
+  function askKey() {
+    try { return localStorage.getItem(ASK_KEY_STORE) || ""; } catch (e) { return ""; }
+  }
+
+  /* Everything the assistant can see about the plan. Read straight out of the
+     engine rather than scraped off the page, so it never reads a figure that is
+     mid-animation or a tile that is currently hidden. */
+  function askSnapshot() {
+    // The active account's stored record lags the live inputs until this runs, so
+    // without it the assistant reads its own last change back as the old value.
+    syncActiveAccount();
+    const allView = isAllAccountsView();
+    const fmt = (v) => Math.round(num(v, 0));
+    const accountSummary = (acct) => {
+      const ui = acct.state?.ui || {};
+      return {
+        name: acct.name,
+        taxType: ui.taxType || "taxable",
+        startingAmount: fmt(ui.principal),
+        contribution: fmt(ui.contrib),
+        contributionFrequency: ui.contribFreq || "monthly",
+        expectedReturnPct: num(ui.rateBase, 0),
+        years: (ui.horizonUnit === "months") ? num(ui.yearsRaw, 0) / 12 : num(ui.yearsRaw, 0),
+        annualFeePct: num(ui.feeRate, 0),
+        retirementOn: !!ui.retireEnabled,
+        retireAtYear: num(ui.retireAtYear, 0),
+        monthlyWithdrawal: fmt(ui.withdrawMonthly),
+        withdrawMode: ui.withdrawMode || "indexed"
+      };
+    };
+
+    const snap = {
+      viewing: allView ? "all accounts combined" : (getActiveAccount()?.name || "Account 1"),
+      accounts: appState.accounts.map(accountSummary),
+      household: {
+        coordinatedSpendingOn: !!appState.household?.enabled,
+        monthly: fmt(appState.household?.monthly),
+        startsInYear: num(appState.household?.retireAtYear, 0),
+        withdrawMode: appState.household?.withdrawMode || "indexed",
+        extraYearsBeyondAccounts: num(appState.household?.extraYears, 0)
+      },
+      todaysDollars: !!appState.ui.realMode,
+      simulationOn: !!appState.ui.mcEnabled
+    };
+
+    // The projection itself, from the same call the chart uses.
+    try {
+      if (allView) {
+        const out = computeCombinedDeterministic();
+        if (out) {
+          snap.result = {
+            horizonYears: Math.round(out.years),
+            endingBalance: fmt(out.ending),
+            spendableAfterDeferredTax: fmt(out.afterTaxEnding),
+            taxStillOwed: fmt(out.deferredTaxOwed),
+            totalFeesPaid: fmt(out.totalFees),
+            note: out.depletionText || "Holds up across the whole horizon."
+          };
+          if (out.household) {
+            snap.result.householdSpendingCovered = fmt(out.household.covered);
+            snap.result.householdShortfall = fmt(out.household.shortfall);
+            snap.result.runsShortFromYear = out.household.shortfallYear;
+          }
+        }
+      } else {
+        const years = getActiveYears();
+        if (years > 0) {
+          const ui = appState.ui;
+          const params = {
+            principal: ui.principal, contribAmt: ui.contrib, contribFreq: ui.contribFreq,
+            years, aprPercent: ui.rateBase, rateLow: ui.rateLow, rateHigh: ui.rateHigh,
+            contribIncreasePct: ui.contribIncrease / 100, maxMonthlyContrib: ui.maxContrib,
+            milestones: appState.milestonesEnabled ? normalizeMilestonesFrom(years, getMilestoneRunList()) : [],
+            taxPct: ui.taxEnabled ? ui.taxRate / 100 : 0,
+            retireEnabled: ui.retireEnabled, retireAtYear: ui.retireAtYear,
+            withdrawMonthly: ui.withdrawMonthly, inflationPct: ui.inflationRate / 100,
+            withdrawIndexToInflation: ui.withdrawInflationToggle,
+            ...modelExtrasFromUI(ui), contribStartMonth: 1
+          };
+          const out = computeDeterministic(params);
+          snap._params = params;
+          const lens = (v) => ui.realMode ? discountValue(v, years, ui.inflationRate / 100) : v;
+          snap.result = {
+            horizonYears: Math.round(years),
+            endingBalance: fmt(lens(out.ending)),
+            spendableAfterDeferredTax: fmt(lens(out.afterTaxEnding)),
+            totalPaidIn: fmt(lens(out.invested)),
+            growth: fmt(lens(out.interestEarned)),
+            totalFeesPaid: fmt(out.totalFees),
+            note: out.depletionText || (out.depletionYear === null ? "Does not run out over this horizon." : "")
+          };
+        }
+      }
+    } catch (err) {
+      snap.result = { error: "Could not compute a projection from the current settings: " + (err && err.message) };
+    }
+
+    /* Whenever the simulation is on it is the more honest answer, so it is reported
+       for a single account as well as the combined view -- a median with no spread
+       beside it reads as a promise. */
+    try {
+      if (appState.ui.mcEnabled) {
+        const mc = allView
+          ? runCombinedMonteCarlo()
+          : (snap._params ? runMonteCarlo(snap._params) : null);
+        if (mc) {
+          snap.simulation = {
+            trials: mc.runs,
+            weakOutcomeP10: fmt(mc.p10[mc.p10.length - 1]),
+            medianP50: fmt(mc.p50[mc.p50.length - 1]),
+            strongOutcomeP90: fmt(mc.p90[mc.p90.length - 1]),
+            survivalRatePct: Math.round((1 - mc.ruinRate) * 1000) / 10
+          };
+        }
+      }
+    } catch (err) { /* the projection above is still usable without it */ }
+
+    delete snap._params;  // internal, not for the model
+    return snap;
+  }
+
+  /* Applies state the assistant set, pushes it out to the controls, recalculates,
+     and saves. The save matters: it is what folds the change back into the active
+     account's own record, so switching tabs afterwards does not discard it. */
+  function askCommit() {
+    suppressEvents = true;
+    applyStateToUI();
+    suppressEvents = false;
+    updateUIState();
+    renderAccountTabs();
+    calculate();
+    saveState();
+  }
+
+  function askRunTool(name, input) {
+    const args = input && typeof input === "object" ? input : {};
+
+    if (name === "read_plan") return askSnapshot();
+
+    if (name === "update_plan") {
+      /* Settings live on one account. In the combined view `appState.ui` is a
+         leftover that syncActiveAccount() deliberately never writes back, so a
+         change made here would apply to the chart and then vanish at the next tab
+         switch. Refuse instead, and say which names are valid. */
+      const wantAccount = String(args.account || "").trim();
+      if (wantAccount) {
+        const target = appState.accounts.find(
+          a => a.name.toLowerCase() === wantAccount.toLowerCase()
+        );
+        if (!target) {
+          return { error: `No account called "${wantAccount}". Accounts are: ${appState.accounts.map(a => a.name).join(", ")}.` };
+        }
+        if (target.id !== appState.activeAccountId) switchAccount(target.id);
+      } else if (isAllAccountsView()) {
+        return {
+          error: "The combined view is showing, and these settings belong to one account. Name the account to change.",
+          accounts: appState.accounts.map(a => a.name)
+        };
+      }
+
+      const changed = [];
+      Object.keys(args).forEach(key => {
+        if (key === "account") return;
+        const f = UI_FIELDS.find(x => x.key === key && ASK_FIELDS.some(a => a[0] === key));
+        if (!f) return;
+        const raw = args[key];
+        if (raw === null || raw === undefined) return;
+        appState.ui[key] = coerceField(f, raw);
+        changed.push(`${key} = ${appState.ui[key]}`);
+      });
+      if (!changed.length) return { error: "No recognised fields were supplied, so nothing changed." };
+      askCommit();
+      const who = getActiveAccount()?.name || "the account";
+      return { changed, account: who, plan: askSnapshot(), _summary: `${who}: ${changed.join(", ")}` };
+    }
+
+    if (name === "add_account") {
+      if (appState.accounts.length >= MAX_ACCOUNTS) {
+        return { error: `This profile already has the maximum of ${MAX_ACCOUNTS} accounts.` };
+      }
+      addAccount();
+      const acct = appState.accounts[appState.accounts.length - 1];
+      const wanted = String(args.name || "").trim().slice(0, 40);
+      if (wanted) { acct.name = wanted; renderAccountTabs(); saveState(); }
+      return { added: acct.name, plan: askSnapshot(), _summary: `added account "${acct.name}"` };
+    }
+
+    if (name === "set_household_spending") {
+      const hh = appState.household;
+      if (typeof args.enabled === "boolean") hh.enabled = args.enabled;
+      if (Number.isFinite(args.monthly)) hh.monthly = Math.max(0, args.monthly);
+      if (Number.isFinite(args.retireAtYear)) hh.retireAtYear = Math.max(0, Math.round(args.retireAtYear));
+      if (Number.isFinite(args.percent)) hh.percent = clamp(args.percent, 0, 100);
+      if (Number.isFinite(args.extraYears)) hh.extraYears = clamp(args.extraYears, 0, MAX_EXTRA_YEARS);
+      if (args.withdrawMode === "percent" || args.withdrawMode === "fixed" || args.withdrawMode === "indexed") {
+        hh.withdrawMode = args.withdrawMode;
+      }
+      // Coordinated spending is a property of the combined view, so show it.
+      if (hh.enabled && appState.accounts.length > 1) switchAccount(ALL_ACCOUNTS);
+      askCommit();
+      return { household: hh, plan: askSnapshot(), _summary: "set household spending" };
+    }
+
+    if (name === "reset_plan") {
+      resetToDefaults();
+      return { plan: askSnapshot(), _summary: "reset everything to an empty plan" };
+    }
+
+    return { error: `Unknown tool: ${name}` };
+  }
+
+  /* Marks the tail of the conversation as a cache breakpoint, without mutating
+     askState.messages -- everything before it was either read from cache by an
+     earlier call in this turn or is about to be written for the next one. Content
+     is a plain string only on the very first user turn; every later message is
+     already the block-array shape the tool loop builds. */
+  function askCacheableMessages(messages) {
+    if (!messages.length) return messages;
+    const last = messages[messages.length - 1];
+    let content;
+    if (typeof last.content === "string") {
+      content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
+    } else {
+      content = last.content.slice();
+      content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: "ephemeral" } };
+    }
+    return [...messages.slice(0, -1), { ...last, content }];
+  }
+
+  async function askCallApi(messages) {
+    const key = askKey();
+    if (!key) throw new Error("NO_KEY");
+
+    let res;
+    try {
+      res = await fetch(ASK_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+          // Required for calling the API straight from a page rather than a server.
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: ASK_MODEL,
+          max_tokens: 16000,
+          /* Thinking is left on deliberately. With it disabled this model can write
+             a tool call into its visible text instead of actually calling the tool --
+             the turn looks fine and the calculator never moves. Effort is the lever
+             for keeping it quick instead. */
+          output_config: { effort: "medium" },
+          /* Neither the prompt nor the tool schema changes for the life of the page,
+             so caching them is pure upside. The 1h TTL matters here specifically:
+             someone using this between other tasks is likely to come back after the
+             default 5-minute window has lapsed, which would otherwise force a fresh
+             (pricier) write on every question instead of a cheap read. */
+          system: [{ type: "text", text: ASK_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } }],
+          tools: ASK_TOOLS,
+          /* A second, short-lived breakpoint on the conversation itself: within one
+             turn the loop calls this several times (read_plan, then update_plan,
+             then the final answer), each resending everything so far. This lets
+             call 2 read what call 1 already paid to write, and so on. */
+          messages: askCacheableMessages(messages)
+        })
+      });
+    } catch (err) {
+      throw new Error("NETWORK");
+    }
+
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = await res.json();
+        detail = body?.error?.message || "";
+      } catch (e) { /* non-JSON error body */ }
+      if (res.status === 401) throw new Error("BAD_KEY");
+      if (res.status === 429) throw new Error("RATE_LIMIT");
+      throw new Error(`API ${res.status}${detail ? ": " + detail : ""}`);
+    }
+    return res.json();
+  }
+
+  function askTextOf(content) {
+    return (content || [])
+      .filter(b => b.type === "text")
+      .map(b => b.text)
+      .join("\n")
+      .trim();
+  }
+
+  async function askConverse(userText) {
+    askState.messages.push({ role: "user", content: userText });
+    askRenderMessage("user", userText);
+    askSetBusy(true);
+
+    try {
+      for (let step = 0; step < ASK_MAX_STEPS; step++) {
+        const reply = await askCallApi(askState.messages);
+
+        /* This model can decline a request outright, and that arrives as a normal
+           successful response -- so the stop reason has to be checked before the
+           content is read, or the answer looks blank for no reason. */
+        if (reply.stop_reason === "refusal") {
+          askRenderMessage("error", "Claude declined to answer that one. Rephrasing usually helps.");
+          return;
+        }
+
+        askState.messages.push({ role: "assistant", content: reply.content });
+
+        const text = askTextOf(reply.content);
+        const toolUses = (reply.content || []).filter(b => b.type === "tool_use");
+
+        if (!toolUses.length) {
+          askRenderMessage("claude", text || "(no answer came back)");
+          return;
+        }
+
+        if (text) askRenderMessage("claude", text);
+
+        const results = [];
+        const summaries = [];
+        toolUses.forEach(tu => {
+          let out;
+          try {
+            out = askRunTool(tu.name, tu.input);
+          } catch (err) {
+            out = { error: String((err && err.message) || err) };
+          }
+          if (out && out._summary) { summaries.push(out._summary); delete out._summary; }
+          results.push({
+            type: "tool_result",
+            tool_use_id: tu.id,
+            content: JSON.stringify(out),
+            is_error: !!(out && out.error)
+          });
+        });
+        if (summaries.length) askRenderActions(summaries);
+
+        askState.messages.push({ role: "user", content: results });
+      }
+      askRenderMessage("error", "Claude kept going for too many steps and was stopped. Try asking for one thing at a time.");
+    } catch (err) {
+      const code = String((err && err.message) || err);
+      if (code === "NO_KEY") {
+        askRenderMessage("error", "Add your Anthropic API key above first.");
+        askShowSetup(true);
+      } else if (code === "BAD_KEY") {
+        askRenderMessage("error", "That key was rejected. Check it and save it again.");
+        askShowSetup(true);
+      } else if (code === "RATE_LIMIT") {
+        askRenderMessage("error", "Rate limited by the API. Wait a moment and try again.");
+      } else if (code === "NETWORK") {
+        askRenderMessage("error", "Could not reach the API. Check your connection -- this is the one part of the tool that needs one.");
+      } else {
+        askRenderMessage("error", code);
+      }
+    } finally {
+      askSetBusy(false);
+    }
+  }
+
+  /* ---- Ask Claude: panel ---- */
+
+  function askRenderMessage(kind, text) {
+    const thread = $("askThread");
+    if (!thread) return;
+    const el = document.createElement("div");
+    el.className = "askMsg " + (kind === "user" ? "isUser" : kind === "error" ? "isError" : "isClaude");
+    el.textContent = text;
+    thread.appendChild(el);
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  // Anything the assistant changed is stated in the thread, so a number that moves
+  // on screen is never unexplained.
+  function askRenderActions(summaries) {
+    const thread = $("askThread");
+    if (!thread) return;
+    const el = document.createElement("div");
+    el.className = "askActions";
+    el.innerHTML = "<b>Changed:</b> " + escapeHtml(summaries.join(" &middot; ").replace(/&middot;/g, "·"));
+    thread.appendChild(el);
+    thread.scrollTop = thread.scrollHeight;
+  }
+
+  function askSetBusy(busy) {
+    askState.busy = !!busy;
+    const btn = $("askSend");
+    const status = $("askStatus");
+    if (btn) { btn.disabled = !!busy; btn.textContent = busy ? "Working" : "Ask"; }
+    if (status) {
+      status.innerHTML = busy
+        ? '<span class="askDot"></span>Claude is working the calculator&hellip;'
+        : "";
+    }
+  }
+
+  function askShowSetup(force) {
+    const setup = $("askSetup");
+    const hint = $("askSetupHint");
+    const clear = $("askClearKey");
+    if (!setup) return;
+    const has = !!askKey();
+    setup.hidden = has && !force;
+    if (clear) clear.hidden = !has;
+    if (hint) {
+      hint.textContent = has
+        ? "A key is saved in this browser."
+        : "Needs an Anthropic API key. This is the only part of the tool that talks to the internet — everything else works offline.";
+    }
+  }
+
+  function askBind() {
+    const send = $("askSend");
+    const input = $("askInput");
+    const save = $("askSaveKey");
+    const clear = $("askClearKey");
+    const reset = $("askReset");
+    if (!send || !input) return;
+
+    const submit = () => {
+      const text = input.value.trim();
+      if (!text || askState.busy) return;
+      input.value = "";
+      askConverse(text);
+    };
+
+    send.addEventListener("click", submit);
+    // Enter sends, shift+enter starts a new line.
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
+    });
+
+    if (save) save.addEventListener("click", () => {
+      const el = $("askKey");
+      const val = (el?.value || "").trim();
+      if (!val) return;
+      try { localStorage.setItem(ASK_KEY_STORE, val); } catch (e) { /* storage blocked */ }
+      if (el) el.value = "";
+      askShowSetup(false);
+      askRenderMessage("claude", "Key saved. Describe your situation and I'll set the calculator up.");
+    });
+
+    if (clear) clear.addEventListener("click", () => {
+      try { localStorage.removeItem(ASK_KEY_STORE); } catch (e) { /* storage blocked */ }
+      askShowSetup(true);
+    });
+
+    if (reset) reset.addEventListener("click", () => {
+      askState.messages = [];
+      const thread = $("askThread");
+      if (thread) thread.innerHTML = "";
+    });
+
+    askShowSetup(false);
+  }
+
+
   function bindEvents() {
     const inputIds = [
       "principal","rateBase","contrib","contribIncrease","maxContrib","years","rateLow","rateHigh",
@@ -8852,6 +9572,7 @@
     suppressEvents = false;
     updateUIState();
     bindEvents();
+    askBind();
     renderAccountTabs();
     renderMilestones();
     renderIncomes();
