@@ -2129,11 +2129,11 @@
     { key: "simpleMode",      el: "simpleToggle", kind: "bool", def: false, scenario: false },
 
     { key: "realMode",        el: "realToggle",  kind: "bool", def: false, simple: false },
-    { key: "inflationRate",   kind: "num",  def: 2.5, min: 0, keep: true },
+    { key: "inflationRate",   kind: "num",  def: 2.5, min: 0, keep: true, assumption: true },
     { key: "taxEnabled",      el: "taxToggle",   kind: "bool", def: false, simple: false },
-    { key: "taxRate",         kind: "num",  def: 25, min: 0 },
+    { key: "taxRate",         kind: "num",  def: 25, min: 0, assumption: true },
     { key: "taxType",         kind: "str",  def: "taxable", simple: "taxable", extra: true },
-    { key: "retireTaxRate",   kind: "num",  def: 22, min: 0, max: 95,
+    { key: "retireTaxRate",   kind: "num",  def: 22, min: 0, max: 95, assumption: true,
       extra: { as: "retireTaxPct", scale: 1 / 100, def: 0 } },
     { key: "goalSeekOn",      el: "goalToggle",  kind: "bool", def: false, simple: false },
     { key: "targetBalance",   kind: "num",  def: 1000000, min: 0, keep: true },
@@ -2149,20 +2149,20 @@
     { key: "withdrawInflationToggle", kind: "bool", def: true,
       derive: (ui) => ui.withdrawMode === "indexed",
       fromScenario: (inp) => typeof inp.withdrawInflationToggle === "boolean" ? inp.withdrawInflationToggle : true },
-    { key: "withdrawPercent", kind: "num",  def: 4, readDef: 4, min: 0, max: 100, extra: true },
-    { key: "withdrawCapPct",  kind: "num",  def: 0, min: 0, max: 100, extra: true },
+    { key: "withdrawPercent", kind: "num",  def: 4, readDef: 4, min: 0, max: 100, extra: true, assumption: true },
+    { key: "withdrawCapPct",  kind: "num",  def: 0, min: 0, max: 100, extra: true, assumption: true },
     { key: "feeRate",         kind: "num",  def: 0, min: 0, max: 100, extra: { as: "feePct" } },
 
     { key: "delayEnabled",    el: "delayToggle", kind: "bool", def: false, simple: false },
     { key: "delayYears",      kind: "num",  def: 5, min: 1, keep: true },
-    { key: "fatTails",        el: "fatTailsToggle", kind: "bool", def: true, extra: true },
+    { key: "fatTails",        el: "fatTailsToggle", kind: "bool", def: true, extra: true, assumption: true },
     { key: "mcEnabled",       el: "mcToggle",  kind: "bool", def: false, simple: false },
-    { key: "rateLow",         kind: "num",  def: -13.5 },
-    { key: "rateHigh",        kind: "num",  def: 27.5 },
+    { key: "rateLow",         kind: "num",  def: -13.5, assumption: true },
+    { key: "rateHigh",        kind: "num",  def: 27.5, assumption: true },
     { key: "glideEnabled",    el: "glideToggle", kind: "bool", def: false, simple: false, extra: true },
-    { key: "glideEndRate",    kind: "num",  def: 5, min: 0, extra: { def: 0 } },
-    { key: "glideEndLow",     kind: "num",  def: -5, extra: { def: 0 } },
-    { key: "glideEndHigh",    kind: "num",  def: 15, extra: { def: 0 } },
+    { key: "glideEndRate",    kind: "num",  def: 5, min: 0, extra: { def: 0 }, assumption: true },
+    { key: "glideEndLow",     kind: "num",  def: -5, extra: { def: 0 }, assumption: true },
+    { key: "glideEndHigh",    kind: "num",  def: 15, extra: { def: 0 }, assumption: true },
     { key: "logScale",        el: "logScaleToggle", kind: "bool", def: false, scenario: false }
   ];
 
@@ -2205,17 +2205,29 @@
     return ui;
   }
 
-  /* An empty plan: every amount and rate at zero, every option off. This is what
-     Reset produces, on the view that a blank form you fill in beats a worked
+  /* An empty plan: everything you own at zero, every optional feature off. This is
+     what Reset produces, on the view that a blank form you fill in beats a worked
      example you have to clear out first.
 
-     Fields declaring a minimum above zero sit at that minimum instead -- a "1" in a
-     box that cannot legally hold 0 is less confusing than a 0 the next keystroke
-     would silently correct. They belong to features that are switched off anyway. */
+     But only what you own. Fields marked `assumption` describe how the model
+     behaves rather than what is in your accounts -- the 10th/90th percentile
+     return band, whether bad years cluster, inflation, tax rates, the de-risked
+     mix -- and they keep their defaults.
+
+     Zeroing those was a real mistake: it left the return band at 0 to 0, so
+     switching the simulation on ran 2,500 trials of a market that never moves.
+     Every percentile came out identical and the P10-P90 shading vanished, because
+     there was genuinely nothing to shade. An assumption set to zero is not a blank
+     field waiting for input; it is a different and wrong claim about the world.
+
+     Fields declaring a minimum above zero sit at that minimum -- a "1" in a box
+     that cannot legally hold 0 is less confusing than a 0 the next keystroke would
+     silently correct. They belong to features that are switched off anyway. */
   function blankUI() {
     const ui = {};
     UI_FIELDS.forEach(f => {
-      if (f.kind === "bool") ui[f.key] = false;
+      if (f.assumption) ui[f.key] = f.def;
+      else if (f.kind === "bool") ui[f.key] = false;
       else if (f.kind === "num") ui[f.key] = (Number.isFinite(f.min) && f.min > 0) ? f.min : 0;
       else ui[f.key] = f.def;
     });
@@ -2711,9 +2723,12 @@
     appState.scenarios = [];
     appState.activeScenarioId = null;
     appState.chainMode = false;
+    // Amounts to zero, but the share taken keeps its default for the same reason
+    // the return band does: 0% is not an empty field, it is a rule that draws
+    // nothing.
     appState.household = {
       enabled: false, monthly: 0, retireAtYear: 0, extraYears: 0,
-      withdrawMode: "indexed", percent: 0, capPct: 0
+      withdrawMode: "indexed", percent: 4, capPct: 0
     };
     // Series hidden through the legend are a view setting, but "erase everything"
     // reasonably means the chart comes back the way it shipped too.
@@ -5631,7 +5646,14 @@
         const volText = ui.glideEnabled
           ? `${vol.toFixed(1)}% falling to ${(lognormalMonthlyParams(ui.glideEndRate, ui.glideEndLow, ui.glideEndHigh).sigmaAnnual * 100).toFixed(1)}% annual volatility`
           : `${vol.toFixed(1)}% annual volatility`;
-        mcHint.textContent = `${mcData.runs} lognormal trials, monthly steps, ${volText}. Low/High are the 10th/90th percentile years.`;
+        /* A weak year equal to a strong year is a market that never moves, so every
+           trial comes out identical and the shaded range collapses onto the line.
+           That is correct, and it looks exactly like a bug, so say it plainly
+           instead of leaving a bare "0.0% volatility" to be decoded. */
+        mcHint.textContent = (vol > 0)
+          ? `${mcData.runs} lognormal trials, monthly steps, ${volText}. Low/High are the 10th/90th percentile years.`
+          : `Weak and strong years are the same, so there is no range to shade -- every trial is identical. Widen the Low/High figures to see a P10-P90 band.`;
+        mcHint.style.color = (vol > 0) ? "" : "#b45309";
       } else {
         mcHint.textContent = "Runs thousands of randomised markets for a P10/P50/P90 range.";
       }
