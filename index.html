@@ -427,7 +427,7 @@
     border-radius:999px;
     padding:2px 9px;
   }
-  /* ---- Ask Claude panel ---- */
+  /* ---- Ask AI panel ---- */
   .askSetup{
     padding:10px 12px;
     border:1px solid var(--border);
@@ -1669,7 +1669,7 @@
       <div>
         <div class="title">Wealth <span class="titleAccent">Projection</span></div>
         <div class="titleEngine">ENGINE</div>
-        <div class="subtitle">Deterministic and Monte Carlo projections with milestones, scenarios, and chained life phases.</div>
+        <div class="subtitle">Multi-account saving and retirement planning &mdash; tax treatment, fees and glide paths, Monte Carlo ranges, coordinated drawdown, and sensitivity analysis.</div>
       </div>
     </div>
     <div class="badge" id="pill">-</div>
@@ -2138,27 +2138,51 @@
   <section class="card askCard" id="askCard">
     <details id="askDetails">
       <summary>
-        <span class="checksTitle">Ask Claude</span>
+        <span class="checksTitle">Ask AI</span>
         <span class="sensHint">describe it in words</span>
       </summary>
 
       <div class="askSetup" id="askSetup">
         <div class="hint" id="askSetupHint"></div>
         <div class="inlineRow" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
-          <span class="field" style="flex:1 1 260px;">
-            <input id="askKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
-          </span>
-          <button id="askSaveKey" type="button" class="secondary">Save key</button>
-          <button id="askClearKey" type="button" class="secondary" hidden>Forget key</button>
+          <label class="field" style="flex:0 1 170px;">
+            <span>Provider</span>
+            <select id="askProvider">
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI</option>
+              <option value="google">Google (Gemini)</option>
+            </select>
+          </label>
+          <label class="field" style="flex:0 1 190px;">
+            <span>Model</span>
+            <select id="askModel"></select>
+          </label>
         </div>
-        <div class="askWarn">
-          Your key is stored in this browser only, unencrypted, and is never sent anywhere except
-          Anthropic. Anyone who can open this browser profile can read it. If you share this file with
-          someone, they need their own key &mdash; do not send them yours.
+        <!-- Shown once a key is saved: the key itself stays hidden, but swapping it
+             out or removing it has to stay reachable. -->
+        <div class="inlineRow" id="askKeySaved" style="margin-top:8px; gap:8px; flex-wrap:wrap;" hidden>
+          <button id="askChangeKey" type="button" class="secondary">Use a different key</button>
+          <button id="askClearKey" type="button" class="secondary">Forget key</button>
+        </div>
+
+        <div id="askKeyEntry">
+          <div class="inlineRow" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+            <span class="field" style="flex:1 1 260px;">
+              <input id="askKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-...">
+            </span>
+            <button id="askSaveKey" type="button" class="secondary">Save key</button>
+            <button id="askCancelKey" type="button" class="secondary" hidden>Cancel</button>
+          </div>
+          <div class="hint" id="askKeyWhere"></div>
+          <div class="askWarn">
+            Your key is stored in this browser only, unencrypted, and is sent only to the provider you
+            pick above. Anyone who can open this browser profile can read it. If you share this file with
+            someone, they need their own key &mdash; do not send them yours.
+          </div>
         </div>
       </div>
 
-      <div id="askThread" class="askThread" role="log" aria-live="polite" aria-label="Conversation with Claude"></div>
+      <div id="askThread" class="askThread" role="log" aria-live="polite" aria-label="Conversation with the assistant"></div>
 
       <div class="askComposeRow">
         <textarea id="askInput" class="askInput" rows="2" placeholder="e.g. I'm 34, have 80k in my 403b and put in 600 a month. Can I retire at 62 on 4,000 a month?"></textarea>
@@ -2168,7 +2192,7 @@
         <span class="hint" id="askStatus"></span>
         <button id="askReset" type="button" class="secondary">Clear chat</button>
       </div>
-      <div class="hint">Claude reads and changes this calculator directly &mdash; every number it quotes comes from the same engine as the chart, not from the model's own arithmetic.</div>
+      <div class="hint">The assistant reads and changes this calculator directly &mdash; every number it quotes comes from the same engine as the chart, not from the model's own arithmetic.</div>
     </details>
   </section>
 
@@ -8607,20 +8631,202 @@
     }).join("");
   }
 
-  /* ---- Ask Claude -------------------------------------------------------
-     A chat panel where a plan can be described in words. Claude does not do the
-     arithmetic -- it drives this calculator through tools and reads the answer
+  /* ---- Ask AI -----------------------------------------------------------
+     A chat panel where a plan can be described in words. The model does not do
+     the arithmetic -- it drives this calculator through tools and reads the answer
      back out, so every figure it quotes comes from the same engine as the chart.
      That is the whole point: a language model asked to compound interest in its
      head is guessing, and the guess looks exactly like the real number.
 
      No SDK here on purpose. This file has no build step and runs from a local
-     copy with no network of its own, so the API is called over plain fetch. */
+     copy with no network of its own, so the APIs are called over plain fetch.
 
-  const ASK_ENDPOINT = "https://api.anthropic.com/v1/messages";
-  const ASK_MODEL = "claude-opus-5";
-  const ASK_KEY_STORE = "compoundInterestCalculator.apiKey";
+     Three vendors are supported, and they disagree about almost everything: the
+     endpoint, where the key goes, what a tool definition looks like, how a tool
+     call comes back, and how its result is fed in again. So the conversation is
+     kept in one neutral shape of our own (see askState.messages) and each adapter
+     translates the whole thing to its own wire format on every call. Keeping
+     vendor-native history instead would mean a provider switch mid-chat either
+     corrupts the transcript or has to throw it away. */
+
   const ASK_MAX_STEPS = 8;
+  const ASK_STORE_PROVIDER = "compoundInterestCalculator.aiProvider";
+  const ASK_STORE_KEY      = "compoundInterestCalculator.aiKey";    // + "." + id
+  const ASK_STORE_MODEL    = "compoundInterestCalculator.aiModel";  // + "." + id
+  // Where the key lived before this panel supported more than one vendor.
+  const ASK_LEGACY_KEY     = "compoundInterestCalculator.apiKey";
+
+  /* Gemini wants OpenAPI-style schemas with upper-case type names, and rejects an
+     object that declares no properties -- so a no-argument tool has to omit its
+     parameters entirely rather than send an empty object. */
+  function askGeminiSchema(schema) {
+    if (!schema || typeof schema !== "object") return null;
+    const props = schema.properties || {};
+    const names = Object.keys(props);
+    if (!names.length) return null;
+    const out = { type: "OBJECT", properties: {} };
+    names.forEach(n => {
+      const p = props[n] || {};
+      out.properties[n] = {
+        type: String(p.type || "string").toUpperCase(),
+        description: p.description || ""
+      };
+    });
+    if (Array.isArray(schema.required) && schema.required.length) out.required = schema.required.slice();
+    return out;
+  }
+
+  /* Each adapter turns the neutral conversation into one request, and turns one
+     response back into { text, toolUses, refused }. Nothing outside these objects
+     knows which vendor is in play. */
+  const AI_PROVIDERS = {
+    anthropic: {
+      label: "Anthropic (Claude)",
+      keyHint: "sk-ant-...",
+      keysUrl: "console.anthropic.com",
+      defaultModel: "claude-opus-5",
+      models: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
+      build(key, model, messages) {
+        return {
+          url: "https://api.anthropic.com/v1/messages",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            // Required for calling the API straight from a page rather than a server.
+            "anthropic-dangerous-direct-browser-access": "true"
+          },
+          body: {
+            model,
+            max_tokens: 16000,
+            /* Thinking is left on deliberately. With it disabled this model can write
+               a tool call into its visible text instead of actually calling the tool --
+               the turn looks fine and the calculator never moves. Effort is the lever
+               for keeping it quick instead. */
+            output_config: { effort: "medium" },
+            /* Neither the prompt nor the tool schema changes for the life of the page,
+               so caching them is pure upside. The 1h TTL matters here specifically:
+               someone using this between other tasks is likely to come back after the
+               default 5-minute window has lapsed, which would otherwise force a fresh
+               (pricier) write on every question instead of a cheap read. */
+            system: [{ type: "text", text: ASK_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } }],
+            tools: ASK_TOOLS.map(t => ({
+              name: t.name, description: t.description, input_schema: t.input_schema
+            })),
+            messages: askAnthropicMessages(messages)
+          }
+        };
+      },
+      parse(json) {
+        // A decline arrives as a perfectly successful response, so it has to be
+        // checked before the content is read or the answer just looks blank.
+        if (json.stop_reason === "refusal") return { refused: true, text: "", toolUses: [] };
+        const content = json.content || [];
+        return {
+          text: content.filter(b => b.type === "text").map(b => b.text).join("\n").trim(),
+          toolUses: content.filter(b => b.type === "tool_use")
+            .map(b => ({ id: b.id, name: b.name, input: b.input || {} }))
+        };
+      }
+    },
+
+    openai: {
+      label: "OpenAI",
+      keyHint: "sk-...",
+      keysUrl: "platform.openai.com",
+      defaultModel: "gpt-4o",
+      models: ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "o4-mini"],
+      build(key, model, messages) {
+        return {
+          url: "https://api.openai.com/v1/chat/completions",
+          headers: {
+            "content-type": "application/json",
+            "authorization": "Bearer " + key
+          },
+          body: {
+            model,
+            max_completion_tokens: 16000,
+            messages: [{ role: "system", content: ASK_SYSTEM }].concat(askOpenAIMessages(messages)),
+            tools: ASK_TOOLS.map(t => ({
+              type: "function",
+              function: { name: t.name, description: t.description, parameters: t.input_schema }
+            }))
+          }
+        };
+      },
+      parse(json) {
+        const msg = (json.choices && json.choices[0] && json.choices[0].message) || {};
+        return {
+          text: (msg.content || "").trim(),
+          toolUses: (msg.tool_calls || []).map(tc => {
+            let input = {};
+            // Arguments arrive as a JSON string here, not an object, and a truncated
+            // or malformed one must not take the whole turn down.
+            try { input = JSON.parse(tc.function?.arguments || "{}"); } catch (e) { input = {}; }
+            return { id: tc.id, name: tc.function?.name, input };
+          })
+        };
+      }
+    },
+
+    google: {
+      label: "Google (Gemini)",
+      keyHint: "AIza...",
+      keysUrl: "aistudio.google.com",
+      defaultModel: "gemini-2.5-pro",
+      models: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
+      build(key, model, messages) {
+        const decls = ASK_TOOLS.map(t => {
+          const params = askGeminiSchema(t.input_schema);
+          const d = { name: t.name, description: t.description };
+          if (params) d.parameters = params;
+          return d;
+        });
+        return {
+          url: "https://generativelanguage.googleapis.com/v1beta/models/"
+             + encodeURIComponent(model) + ":generateContent",
+          headers: { "content-type": "application/json", "x-goog-api-key": key },
+          body: {
+            systemInstruction: { parts: [{ text: ASK_SYSTEM }] },
+            contents: askGeminiContents(messages),
+            tools: [{ functionDeclarations: decls }],
+            // Kept modest because the ceiling varies by Gemini model and asking for
+            // more than a model allows is an error rather than a silent clamp.
+            generationConfig: { maxOutputTokens: 8192 }
+          }
+        };
+      },
+      parse(json) {
+        const parts = (json.candidates && json.candidates[0]
+          && json.candidates[0].content && json.candidates[0].content.parts) || [];
+        return {
+          text: parts.filter(p => typeof p.text === "string").map(p => p.text).join("\n").trim(),
+          /* Gemini's function calls carry no id of their own -- a result is matched
+             back to its call by name -- so one is synthesised to keep the neutral
+             shape uniform, and the name is what actually travels back. */
+          toolUses: parts.filter(p => p.functionCall).map((p, i) => ({
+            id: "g" + i + "_" + (p.functionCall.name || ""),
+            name: p.functionCall.name,
+            input: p.functionCall.args || {}
+          }))
+        };
+      }
+    }
+  };
+
+  function askProviderId() {
+    let id = "";
+    try { id = localStorage.getItem(ASK_STORE_PROVIDER) || ""; } catch (e) { /* storage blocked */ }
+    return AI_PROVIDERS[id] ? id : "anthropic";
+  }
+  function askProvider() { return AI_PROVIDERS[askProviderId()]; }
+
+  function askModel(id) {
+    const pid = id || askProviderId();
+    let m = "";
+    try { m = localStorage.getItem(ASK_STORE_MODEL + "." + pid) || ""; } catch (e) { /* storage blocked */ }
+    return m || AI_PROVIDERS[pid].defaultModel;
+  }
 
   /* Fields the assistant is allowed to set, described in the words someone would
      actually use. Types come from the field registry, so these cannot drift from
@@ -8734,10 +8940,116 @@
     "the assumption you are using -- but do not silently invent a return rate or a horizon."
   ].join("\n");
 
+  /* ---- The neutral conversation, and one serialiser per vendor ------------
+     A message is one of:
+       { role: "user",      text }
+       { role: "assistant", text, toolUses: [{ id, name, input }] }
+       { role: "tool",      results: [{ id, name, output, isError }] }
+     Nothing vendor-shaped is ever stored, so switching provider mid-chat keeps
+     the transcript intact instead of having to discard it. */
+
+  function askAnthropicMessages(messages) {
+    const out = messages.map(m => {
+      if (m.role === "user") return { role: "user", content: [{ type: "text", text: m.text }] };
+      if (m.role === "assistant") {
+        const content = [];
+        if (m.text) content.push({ type: "text", text: m.text });
+        (m.toolUses || []).forEach(tu => content.push({
+          type: "tool_use", id: tu.id, name: tu.name, input: tu.input || {}
+        }));
+        return { role: "assistant", content };
+      }
+      // Anthropic takes every result for a turn batched into one user message.
+      return {
+        role: "user",
+        content: (m.results || []).map(r => ({
+          type: "tool_result", tool_use_id: r.id, content: r.output, is_error: !!r.isError
+        }))
+      };
+    });
+
+    /* Cache breakpoint on the tail only. Within one question the loop calls the
+       API several times, each resending everything so far, so this lets call 2
+       read what call 1 already paid to write. Applied to this copy rather than to
+       askState.messages, so no marker is ever left behind in the history. */
+    if (out.length) {
+      const last = out[out.length - 1];
+      const c = (last.content || []).slice();
+      if (c.length) {
+        c[c.length - 1] = { ...c[c.length - 1], cache_control: { type: "ephemeral" } };
+        out[out.length - 1] = { ...last, content: c };
+      }
+    }
+    return out;
+  }
+
+  function askOpenAIMessages(messages) {
+    const out = [];
+    messages.forEach(m => {
+      if (m.role === "user") { out.push({ role: "user", content: m.text }); return; }
+      if (m.role === "assistant") {
+        const msg = { role: "assistant", content: m.text || null };
+        if ((m.toolUses || []).length) {
+          msg.tool_calls = m.toolUses.map(tu => ({
+            id: tu.id,
+            type: "function",
+            // Arguments go over as a JSON string here, not as an object.
+            function: { name: tu.name, arguments: JSON.stringify(tu.input || {}) }
+          }));
+        }
+        out.push(msg);
+        return;
+      }
+      // Unlike Anthropic, OpenAI wants one message per result rather than a batch.
+      (m.results || []).forEach(r => out.push({
+        role: "tool", tool_call_id: r.id, content: r.output
+      }));
+    });
+    return out;
+  }
+
+  function askGeminiContents(messages) {
+    return messages.map(m => {
+      if (m.role === "user") return { role: "user", parts: [{ text: m.text }] };
+      if (m.role === "assistant") {
+        const parts = [];
+        if (m.text) parts.push({ text: m.text });
+        (m.toolUses || []).forEach(tu => parts.push({
+          functionCall: { name: tu.name, args: tu.input || {} }
+        }));
+        return { role: "model", parts };
+      }
+      /* Gemini has no tool role and no call ids: a result is matched to its call
+         by function name, and comes back in as an ordinary user turn. */
+      return {
+        role: "user",
+        parts: (m.results || []).map(r => ({
+          functionResponse: { name: r.name, response: { result: r.output } }
+        }))
+      };
+    });
+  }
+
   const askState = { messages: [], busy: false };
 
-  function askKey() {
-    try { return localStorage.getItem(ASK_KEY_STORE) || ""; } catch (e) { return ""; }
+  function askKey(id) {
+    const pid = id || askProviderId();
+    try {
+      const k = localStorage.getItem(ASK_STORE_KEY + "." + pid);
+      if (k) return k;
+      /* A key saved before this panel supported more than one vendor was
+         Anthropic's by definition, so carry it across rather than orphan it and
+         silently ask the person to paste it again. */
+      if (pid === "anthropic") {
+        const legacy = localStorage.getItem(ASK_LEGACY_KEY);
+        if (legacy) {
+          localStorage.setItem(ASK_STORE_KEY + ".anthropic", legacy);
+          localStorage.removeItem(ASK_LEGACY_KEY);
+          return legacy;
+        }
+      }
+    } catch (e) { /* storage blocked */ }
+    return "";
   }
 
   /* Everything the assistant can see about the plan. Read straight out of the
@@ -8947,62 +9259,28 @@
     return { error: `Unknown tool: ${name}` };
   }
 
-  /* Marks the tail of the conversation as a cache breakpoint, without mutating
-     askState.messages -- everything before it was either read from cache by an
-     earlier call in this turn or is about to be written for the next one. Content
-     is a plain string only on the very first user turn; every later message is
-     already the block-array shape the tool loop builds. */
-  function askCacheableMessages(messages) {
-    if (!messages.length) return messages;
-    const last = messages[messages.length - 1];
-    let content;
-    if (typeof last.content === "string") {
-      content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
-    } else {
-      content = last.content.slice();
-      content[content.length - 1] = { ...content[content.length - 1], cache_control: { type: "ephemeral" } };
-    }
-    return [...messages.slice(0, -1), { ...last, content }];
-  }
-
+  /* Sends one turn to whichever vendor is selected and hands back the neutral
+     { text, toolUses, refused } shape. Everything vendor-specific -- the URL, the
+     header the key rides in, the request body, the response layout -- lives in the
+     adapter, so the loop below never learns which provider it is talking to. */
   async function askCallApi(messages) {
-    const key = askKey();
+    const pid = askProviderId();
+    const provider = AI_PROVIDERS[pid];
+    const key = askKey(pid);
     if (!key) throw new Error("NO_KEY");
+
+    const req = provider.build(key, askModel(pid), messages);
 
     let res;
     try {
-      res = await fetch(ASK_ENDPOINT, {
+      res = await fetch(req.url, {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01",
-          // Required for calling the API straight from a page rather than a server.
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: ASK_MODEL,
-          max_tokens: 16000,
-          /* Thinking is left on deliberately. With it disabled this model can write
-             a tool call into its visible text instead of actually calling the tool --
-             the turn looks fine and the calculator never moves. Effort is the lever
-             for keeping it quick instead. */
-          output_config: { effort: "medium" },
-          /* Neither the prompt nor the tool schema changes for the life of the page,
-             so caching them is pure upside. The 1h TTL matters here specifically:
-             someone using this between other tasks is likely to come back after the
-             default 5-minute window has lapsed, which would otherwise force a fresh
-             (pricier) write on every question instead of a cheap read. */
-          system: [{ type: "text", text: ASK_SYSTEM, cache_control: { type: "ephemeral", ttl: "1h" } }],
-          tools: ASK_TOOLS,
-          /* A second, short-lived breakpoint on the conversation itself: within one
-             turn the loop calls this several times (read_plan, then update_plan,
-             then the final answer), each resending everything so far. This lets
-             call 2 read what call 1 already paid to write, and so on. */
-          messages: askCacheableMessages(messages)
-        })
+        headers: req.headers,
+        body: JSON.stringify(req.body)
       });
     } catch (err) {
+      /* A blocked cross-origin request also lands here, indistinguishable from
+         being offline, because the browser withholds the response either way. */
       throw new Error("NETWORK");
     }
 
@@ -9010,25 +9288,22 @@
       let detail = "";
       try {
         const body = await res.json();
-        detail = body?.error?.message || "";
+        // Anthropic and OpenAI put it on error.message; Google nests the same way.
+        detail = (body && body.error && body.error.message) || "";
       } catch (e) { /* non-JSON error body */ }
-      if (res.status === 401) throw new Error("BAD_KEY");
+      // Google answers an bad key with 403 where the other two use 401.
+      if (res.status === 401 || res.status === 403) throw new Error("BAD_KEY");
       if (res.status === 429) throw new Error("RATE_LIMIT");
       throw new Error(`API ${res.status}${detail ? ": " + detail : ""}`);
     }
-    return res.json();
-  }
 
-  function askTextOf(content) {
-    return (content || [])
-      .filter(b => b.type === "text")
-      .map(b => b.text)
-      .join("\n")
-      .trim();
+    let json;
+    try { json = await res.json(); } catch (e) { throw new Error("Malformed response from the API."); }
+    return provider.parse(json);
   }
 
   async function askConverse(userText) {
-    askState.messages.push({ role: "user", content: userText });
+    askState.messages.push({ role: "user", text: userText });
     askRenderMessage("user", userText);
     askSetBusy(true);
 
@@ -9036,21 +9311,29 @@
       for (let step = 0; step < ASK_MAX_STEPS; step++) {
         const reply = await askCallApi(askState.messages);
 
-        /* This model can decline a request outright, and that arrives as a normal
-           successful response -- so the stop reason has to be checked before the
-           content is read, or the answer looks blank for no reason. */
-        if (reply.stop_reason === "refusal") {
-          askRenderMessage("error", "Claude declined to answer that one. Rephrasing usually helps.");
+        /* A model can decline a request outright, and that arrives as a perfectly
+           successful response -- so it has to be checked before the content is
+           read, or the answer just looks blank for no reason. */
+        if (reply.refused) {
+          askRenderMessage("error", "The model declined to answer that one. Rephrasing usually helps.");
           return;
         }
 
-        askState.messages.push({ role: "assistant", content: reply.content });
+        const text = reply.text || "";
+        const toolUses = reply.toolUses || [];
 
-        const text = askTextOf(reply.content);
-        const toolUses = (reply.content || []).filter(b => b.type === "tool_use");
+        /* Nothing at all came back. Checked before the turn is recorded, because
+           an empty assistant message is rejected on the next request by every
+           vendor here and would wedge the conversation rather than just this turn. */
+        if (!text && !toolUses.length) {
+          askRenderMessage("claude", "(no answer came back)");
+          return;
+        }
+
+        askState.messages.push({ role: "assistant", text, toolUses });
 
         if (!toolUses.length) {
-          askRenderMessage("claude", text || "(no answer came back)");
+          askRenderMessage("claude", text);
           return;
         }
 
@@ -9067,29 +9350,31 @@
           }
           if (out && out._summary) { summaries.push(out._summary); delete out._summary; }
           results.push({
-            type: "tool_result",
-            tool_use_id: tu.id,
-            content: JSON.stringify(out),
-            is_error: !!(out && out.error)
+            id: tu.id,
+            // Carried because Gemini matches a result to its call by name, not id.
+            name: tu.name,
+            output: JSON.stringify(out),
+            isError: !!(out && out.error)
           });
         });
         if (summaries.length) askRenderActions(summaries);
 
-        askState.messages.push({ role: "user", content: results });
+        askState.messages.push({ role: "tool", results });
       }
-      askRenderMessage("error", "Claude kept going for too many steps and was stopped. Try asking for one thing at a time.");
+      askRenderMessage("error", "The model kept going for too many steps and was stopped. Try asking for one thing at a time.");
     } catch (err) {
       const code = String((err && err.message) || err);
+      const provider = askProvider();
       if (code === "NO_KEY") {
-        askRenderMessage("error", "Add your Anthropic API key above first.");
+        askRenderMessage("error", `Add your ${provider.label} API key above first.`);
         askShowSetup(true);
       } else if (code === "BAD_KEY") {
-        askRenderMessage("error", "That key was rejected. Check it and save it again.");
+        askRenderMessage("error", `That key was rejected by ${provider.label}. Check it, and check the provider selected above matches the key.`);
         askShowSetup(true);
       } else if (code === "RATE_LIMIT") {
         askRenderMessage("error", "Rate limited by the API. Wait a moment and try again.");
       } else if (code === "NETWORK") {
-        askRenderMessage("error", "Could not reach the API. Check your connection -- this is the one part of the tool that needs one.");
+        askRenderMessage("error", `Could not reach ${provider.label}. Check your connection -- this is the one part of the tool that needs one. If the connection is fine, the browser may be blocking the request because this file is opened directly from disk.`);
       } else {
         askRenderMessage("error", code);
       }
@@ -9098,7 +9383,7 @@
     }
   }
 
-  /* ---- Ask Claude: panel ---- */
+  /* ---- Ask AI: panel ---- */
 
   function askRenderMessage(kind, text) {
     const thread = $("askThread");
@@ -9129,24 +9414,64 @@
     if (btn) { btn.disabled = !!busy; btn.textContent = busy ? "Working" : "Ask"; }
     if (status) {
       status.innerHTML = busy
-        ? '<span class="askDot"></span>Claude is working the calculator&hellip;'
+        ? '<span class="askDot"></span>Working the calculator&hellip;'
         : "";
     }
   }
 
-  function askShowSetup(force) {
-    const setup = $("askSetup");
+  /* Fills the model list for the selected provider, keeping any model the person
+     typed in themselves so a newer one can be used without waiting for this file
+     to be updated. */
+  function askSyncModelOptions() {
+    const pid = askProviderId();
+    const provider = AI_PROVIDERS[pid];
+    const sel = $("askModel");
+    if (!sel) return;
+    const current = askModel(pid);
+    const names = provider.models.slice();
+    if (!names.includes(current)) names.unshift(current);
+    sel.innerHTML = names.map(m =>
+      `<option value="${escapeHtml(m)}"${m === current ? " selected" : ""}>${escapeHtml(m)}</option>`
+    ).join("");
+  }
+
+  /* The provider and model pickers stay on screen at all times -- an earlier
+     version hid the whole box once a key was saved, which also took the pickers
+     with it and left no way to change vendor or swap a key. Only the key entry
+     itself collapses, since that is the part worth keeping out of sight.
+
+     `openEditor` forces the entry open; otherwise it shows only when there is no
+     key to use. */
+  function askShowSetup(openEditor) {
     const hint = $("askSetupHint");
-    const clear = $("askClearKey");
-    if (!setup) return;
-    const has = !!askKey();
-    setup.hidden = has && !force;
-    if (clear) clear.hidden = !has;
+    const entry = $("askKeyEntry");
+    const saved = $("askKeySaved");
+    const cancel = $("askCancelKey");
+    const where = $("askKeyWhere");
+    const keyInput = $("askKey");
+    const sel = $("askProvider");
+    if (!entry) return;
+
+    const pid = askProviderId();
+    const provider = AI_PROVIDERS[pid];
+    const has = !!askKey(pid);
+    const editing = !!openEditor || !has;
+
+    if (sel && sel.value !== pid) sel.value = pid;
+    if (keyInput) keyInput.placeholder = provider.keyHint;
+    askSyncModelOptions();
+
+    entry.hidden = !editing;
+    if (saved) saved.hidden = editing || !has;
+    // Backing out only means anything when there is already a key to fall back on.
+    if (cancel) cancel.hidden = !has;
+
     if (hint) {
       hint.textContent = has
-        ? "A key is saved in this browser."
-        : "Needs an Anthropic API key. This is the only part of the tool that talks to the internet — everything else works offline.";
+        ? `A key for ${provider.label} is saved in this browser.`
+        : "Needs an API key from whichever provider you pick above. This is the only part of the tool that talks to the internet — everything else works offline.";
     }
+    if (where) where.textContent = `Keys for ${provider.label} come from ${provider.keysUrl}.`;
   }
 
   function askBind() {
@@ -9174,15 +9499,51 @@
       const el = $("askKey");
       const val = (el?.value || "").trim();
       if (!val) return;
-      try { localStorage.setItem(ASK_KEY_STORE, val); } catch (e) { /* storage blocked */ }
+      // Keyed by provider, so having one saved for each and switching between
+      // them does not mean pasting a key in every time.
+      try { localStorage.setItem(ASK_STORE_KEY + "." + askProviderId(), val); } catch (e) { /* storage blocked */ }
       if (el) el.value = "";
       askShowSetup(false);
       askRenderMessage("claude", "Key saved. Describe your situation and I'll set the calculator up.");
     });
 
     if (clear) clear.addEventListener("click", () => {
-      try { localStorage.removeItem(ASK_KEY_STORE); } catch (e) { /* storage blocked */ }
+      const pid = askProviderId();
+      try {
+        localStorage.removeItem(ASK_STORE_KEY + "." + pid);
+        // Clear the pre-multi-provider key too, or it would be migrated straight
+        // back in on the next read and "Forget key" would look broken.
+        if (pid === "anthropic") localStorage.removeItem(ASK_LEGACY_KEY);
+      } catch (e) { /* storage blocked */ }
       askShowSetup(true);
+    });
+
+    const change = $("askChangeKey");
+    if (change) change.addEventListener("click", () => {
+      askShowSetup(true);
+      const el = $("askKey");
+      if (el) { el.value = ""; el.focus(); }
+    });
+
+    const cancelKey = $("askCancelKey");
+    if (cancelKey) cancelKey.addEventListener("click", () => {
+      const el = $("askKey");
+      if (el) el.value = "";   // never leave a half-typed key sitting in the field
+      askShowSetup(false);
+    });
+
+    const providerSel = $("askProvider");
+    if (providerSel) providerSel.addEventListener("change", () => {
+      const pid = AI_PROVIDERS[providerSel.value] ? providerSel.value : "anthropic";
+      try { localStorage.setItem(ASK_STORE_PROVIDER, pid); } catch (e) { /* storage blocked */ }
+      /* The transcript is vendor-neutral, so it deliberately survives the switch:
+         the next question continues the same conversation on the new provider. */
+      askShowSetup(false);
+    });
+
+    const modelSel = $("askModel");
+    if (modelSel) modelSel.addEventListener("change", () => {
+      try { localStorage.setItem(ASK_STORE_MODEL + "." + askProviderId(), modelSel.value); } catch (e) { /* storage blocked */ }
     });
 
     if (reset) reset.addEventListener("click", () => {
