@@ -199,6 +199,8 @@
     gap:6px;
     letter-spacing:0.1px;
   }
+  /* Same trap as .inputGrid: display:flex outranks the hidden attribute. */
+  label[hidden]{ display:none; }
   input,select,button,textarea{
     font-family:var(--body);
     color:var(--text);
@@ -1593,11 +1595,24 @@
       <div class="afterTaxBar" id="householdBar">
         <label class="toggle"><input id="householdToggle" type="checkbox"> Spend from these accounts in order</label>
         <div class="inputGrid" id="householdFields" style="gap:10px; margin-top:10px;" hidden>
-          <label>Monthly spending
-            <span class="field" data-prefix="$"><input id="householdMonthly" type="number" inputmode="decimal" min="0" step="50" value="4000"></span>
+          <label>How you take it
+            <select id="householdWithdrawMode">
+              <option value="indexed">Same spending power (rises with inflation)</option>
+              <option value="fixed">Same cash amount every month</option>
+              <option value="percent">A share of the pot each year</option>
+            </select>
           </label>
           <label>Starting in year
             <span class="field" data-suffix="yr"><input id="householdRetireYear" type="number" inputmode="decimal" min="0" step="1" value="20"></span>
+          </label>
+          <label id="householdMonthlyRow">Monthly spending
+            <span class="field" data-prefix="$"><input id="householdMonthly" type="number" inputmode="decimal" min="0" step="50" value="4000"></span>
+          </label>
+          <label id="householdPercentRow" hidden>Share taken each year
+            <span class="field" data-suffix="%"><input id="householdPercent" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="4"></span>
+          </label>
+          <label id="householdCapRow">Never take more than
+            <span class="field" data-suffix="%"><input id="householdCapPct" type="number" inputmode="decimal" min="0" max="100" step="0.1" value="0"></span>
           </label>
         </div>
         <div class="hint" id="householdHint"></div>
@@ -2245,7 +2260,10 @@
     },
     /* Household-level, not per-account: one person spending from several pots.
        Lives beside `accounts` rather than inside any of them. */
-    household: { enabled: false, monthly: 4000, retireAtYear: 20, extraYears: 0 },
+    household: {
+      enabled: false, monthly: 4000, retireAtYear: 20, extraYears: 0,
+      withdrawMode: "indexed", percent: 4, capPct: 0
+    },
     _simpleSnapshot: null,
     _milestoneViewCache: []
   };
@@ -2587,7 +2605,12 @@
         enabled: !!saved.household.enabled,
         monthly: Math.max(0, num(saved.household.monthly, 4000)),
         retireAtYear: Math.max(0, Math.round(num(saved.household.retireAtYear, 20))),
-        extraYears: clamp(num(saved.household.extraYears, 0), 0, MAX_EXTRA_YEARS)
+        extraYears: clamp(num(saved.household.extraYears, 0), 0, MAX_EXTRA_YEARS),
+        // Records saved before the strategies existed all meant "indexed".
+        withdrawMode: (saved.household.withdrawMode === "percent" || saved.household.withdrawMode === "fixed")
+          ? saved.household.withdrawMode : "indexed",
+        percent: clamp(num(saved.household.percent, 4), 0, 100),
+        capPct: clamp(num(saved.household.capPct, 0), 0, 100)
       };
     }
     const wantsAll = saved.activeAccountId === ALL_ACCOUNTS && accounts.length > 0;
@@ -2976,9 +2999,21 @@
     }
     const retireHint = $("retireHint");
     if (retireHint) {
-      if (!ui.retireEnabled) retireHint.textContent = "Stop contributing and start withdrawing at a chosen year.";
-      else if (useAgeTimeline) retireHint.textContent = `Retiring in Year ${ui.retireAtYear}, from the ages above.`;
-      else retireHint.textContent = "Tip: fill in both ages to work out the retirement year for you.";
+      if (!ui.retireEnabled) {
+        retireHint.textContent = "Stop contributing and start withdrawing at a chosen year.";
+      } else {
+        /* Time horizon doubles as the projection length, so once withdrawals start
+           it decides how long the money has to last. Worth pointing at: a plan that
+           retires in Year 20 on a 30-year horizon is only ever tested for a decade
+           of retirement, which flatters it. The combined view needed a separate
+           control for this because its horizon comes from the accounts; here the
+           existing field already is the control. */
+        const drawYears = Math.max(0, Math.round(getActiveYears() - ui.retireAtYear));
+        const base = useAgeTimeline
+          ? `Retiring in Year ${ui.retireAtYear}, from the ages above.`
+          : "Tip: fill in both ages to work out the retirement year for you.";
+        retireHint.textContent = `${base} Your ${Math.round(getActiveYears())}-year horizon tests ${drawYears} ${drawYears === 1 ? "year" : "years"} of retirement -- raise it to see the money last longer.`;
+      }
     }
 
     const disableWhenSimple = [
@@ -3984,149 +4019,171 @@
     return byMonth;
   }
 
-  /* `rateForMonth(month, yearIndex)` supplies the growth rate; `observer` receives
-     the opening balance and then one record per month.
+  /* ---- One account's walk, in two halves ---------------------------------
+     `beginWalk` sets up a running state and `walkOneMonth` advances it by one
+     month. `walkMonths` drives them in a plain loop and is what almost everything
+     uses.
 
-     `household` is optional. When present the account stops deciding its own
-     withdrawal and instead takes whatever the household still needs that month,
-     reporting back what it managed to deliver. Because the draw order is strictly
-     sequential -- taxable, then pre-tax, then Roth -- the accounts can be run one
-     after another in that order rather than interleaved month by month: an earlier
-     account's capacity never depends on a later one. That is what keeps this to a
-     single engine instead of a second, parallel one. */
-  function walkMonths(p, msByMonth, rateForMonth, observer, household) {
-    let balance = p.principal;
-    let currentContrib = p.contribAmt;
-    let depletionMonth = null;
-    let totalFees = 0;
-    let totalIncome = 0;
-    let totalWithdrawalTax = 0;
-    const feeMonthly = p.feePct > 0 ? (p.feePct / 12) : 0;
-    const hasIncome = p.incomes.length > 0;
+     The split exists for the coordinated household drawdown. There, how much any
+     one account should hand over this month can depend on what every account is
+     holding this month -- a percent-of-balance rule needs the combined total --
+     so the accounts have to be stepped forward together rather than run one after
+     another. Both loops call the same month, so the two can never drift apart,
+     which is a mistake this file has already made once with two engines. */
 
-    const incomeForYear = (yearIndex) => {
-      if (!hasIncome) return 0;
-      let total = 0;
-      for (let i = 0; i < p.incomes.length; i++) {
-        const inc = p.incomes[i];
-        if (yearIndex < inc.startYear) continue;
-        if (inc.endYear > 0 && yearIndex >= inc.endYear) continue;
-        const factor = (inc.indexed && p.inflationPct > 0)
+  function beginWalk(p, msByMonth) {
+    const st = {
+      balance: p.principal,
+      currentContrib: p.contribAmt,
+      depletionMonth: null,
+      totalFees: 0,
+      totalIncome: 0,
+      totalWithdrawalTax: 0,
+      feeMonthly: p.feePct > 0 ? (p.feePct / 12) : 0,
+      hasIncome: p.incomes.length > 0
+    };
+    st.opening = applyWalkEvents(st, msByMonth, 0);
+    return st;
+  }
+
+  function applyWalkEvents(st, msByMonth, absMonth) {
+    const items = msByMonth[absMonth] || [];
+    if (!items.length) return null;
+    const pre = st.balance;
+    const wanted = items.reduce((acc, it) => acc + num(it.delta, 0), 0);
+    st.balance = Math.max(0, st.balance + wanted);
+    return { absMonth, pre, post: st.balance, delta: st.balance - pre, items };
+  }
+
+  function walkIncomeForYear(st, p, yearIndex) {
+    if (!st.hasIncome) return 0;
+    let total = 0;
+    for (let i = 0; i < p.incomes.length; i++) {
+      const inc = p.incomes[i];
+      if (yearIndex < inc.startYear) continue;
+      if (inc.endYear > 0 && yearIndex >= inc.endYear) continue;
+      const factor = (inc.indexed && p.inflationPct > 0)
+        ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
+        : 1;
+      total += inc.amount * factor;
+    }
+    return total;
+  }
+
+  /* Advances one account by one month.
+
+     `demand` is the household coordinator's ask for this month, in spendable
+     dollars, or null when the account decides for itself. The step reports back
+     `delivered`: what actually reached a pocket after any tax on the way out --
+     less than what left the account for a pre-tax pot, and less again if the pot
+     ran dry. */
+  function walkOneMonth(st, p, msByMonth, rateForMonth, m, household, demand) {
+    if (m > 1 && ((m - 1) % 12 === 0)) st.currentContrib *= p.annualStepFactor;
+
+    const yearIndex = Math.floor((m - 1) / 12);
+    // In household mode the retirement date is the household's, not the account's,
+    // so every pot stops contributing and starts being available on the same day.
+    const inRetirement = household
+      ? (yearIndex >= household.retireAtYear)
+      : (p.retireEnabled && (p.withdrawMonthly > 0) && (yearIndex >= p.retireAtYear));
+
+    let contribution = 0;
+    let withdrawal = 0;
+    let delivered = 0;
+
+    if (!inRetirement && m >= p.startContribMonth) {
+      if (p.contribFreq === "annual") {
+        if (m % 12 === 0) contribution = Math.min(st.currentContrib, p.monthlyCap) * 12;
+      } else {
+        contribution = Math.min(st.currentContrib, p.monthlyCap);
+      }
+      st.balance += contribution;
+    } else if (inRetirement) {
+      let target;
+      if (household) {
+        // Whatever the household still needs this month once the accounts ahead of
+        // this one in the order have handed over what they can. Already net of the
+        // household's pooled outside income.
+        target = Math.max(0, num(demand, 0));
+      } else if (p.withdrawMode === "percent") {
+        // Take a share of what is actually there. Self-correcting: it falls in a
+        // bad market and can never exhaust the pot, at the cost of a variable income.
+        target = st.balance * (p.withdrawPercent / 12);
+      } else {
+        const inflFactor = (p.withdrawMode === "indexed" && p.inflationPct > 0)
           ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
           : 1;
-        total += inc.amount * factor;
+        target = p.withdrawMonthly * inflFactor;
       }
-      return total;
-    };
+      /* Pensions and the like are spent before the portfolio is touched, so they
+         reduce the draw rather than adding to it. Floored at zero: a surplus is
+         assumed spent or held elsewhere, never reinvested, which keeps this from
+         flattering the outcome.
+         Skipped in household mode, where income is pooled and netted off once at
+         the household level -- applying it per account would spend the same
+         pension two or three times over. */
+      if (st.hasIncome && !household) {
+        const income = walkIncomeForYear(st, p, yearIndex);
+        st.totalIncome += income;
+        target = Math.max(0, target - income);
+      }
+      let draw = target;
+      // A household ask is always a spending target, so it always grosses up;
+      // percent mode is a withdrawal rule the account applies to itself.
+      if (p.deferredTaxPct > 0 && (household || p.withdrawMode !== "percent")) {
+        draw = target * p.withdrawGrossUp;
+      }
+      // Spending ceiling: hold the annual draw under a share of the balance.
+      // Applied after the gross-up, since what depletes the pot is the gross draw.
+      if (p.withdrawCapPct > 0) {
+        draw = Math.min(draw, st.balance * (p.withdrawCapPct / 12));
+      }
+      const pre = st.balance;
+      st.balance = Math.max(0, st.balance - draw);
+      withdrawal = pre - st.balance;
+      if (p.deferredTaxPct > 0) st.totalWithdrawalTax += withdrawal * p.deferredTaxPct;
+      delivered = withdrawal * (1 - p.deferredTaxPct);
+      if (st.depletionMonth === null && st.balance <= 0) st.depletionMonth = m;
+    }
 
-    const applyEvents = (absMonth) => {
-      const items = msByMonth[absMonth] || [];
-      if (!items.length) return null;
-      const pre = balance;
-      const wanted = items.reduce((acc, it) => acc + num(it.delta, 0), 0);
-      balance = Math.max(0, balance + wanted);
-      return { absMonth, pre, post: balance, delta: balance - pre, items };
-    };
+    const event = applyWalkEvents(st, msByMonth, m);
 
-    const opening = applyEvents(0);
-    if (observer && observer.onStart) observer.onStart(balance, opening);
+    let interest = st.balance * rateForMonth(m, yearIndex);
+    // Tax applies to gains only. Applying it to a negative month as well handed
+    // back a loss rebate, which flattered every downside path. Sheltered accounts
+    // pay nothing here -- that is what gainsTaxPct being zero for them means.
+    if (p.gainsTaxPct > 0 && interest > 0) interest = interest * (1 - p.gainsTaxPct);
+    st.balance = Math.max(0, st.balance + interest);
+
+    // Fees come off the balance after growth, the way an expense ratio accrues.
+    let fee = 0;
+    if (st.feeMonthly > 0 && st.balance > 0) {
+      fee = st.balance * st.feeMonthly;
+      st.balance = Math.max(0, st.balance - fee);
+      st.totalFees += fee;
+    }
+
+    return { month: m, yearIndex, contribution, withdrawal, delivered, interest, fee, event, balance: st.balance };
+  }
+
+  /* `rateForMonth(month, yearIndex)` supplies the growth rate; `observer` receives
+     the opening balance and then one record per month. */
+  function walkMonths(p, msByMonth, rateForMonth, observer, household) {
+    const st = beginWalk(p, msByMonth);
+    if (observer && observer.onStart) observer.onStart(st.balance, st.opening);
 
     for (let m = 1; m <= p.monthsTotal; m++) {
-      if (m > 1 && ((m - 1) % 12 === 0)) currentContrib *= p.annualStepFactor;
-
-      const yearIndex = Math.floor((m - 1) / 12);
-      // In household mode the retirement date is the household's, not the account's,
-      // so every pot stops contributing and starts being available on the same day.
-      const inRetirement = household
-        ? (yearIndex >= household.retireAtYear)
-        : (p.retireEnabled && (p.withdrawMonthly > 0) && (yearIndex >= p.retireAtYear));
-
-      let contribution = 0;
-      let withdrawal = 0;
-
-      if (!inRetirement && m >= p.startContribMonth) {
-        if (p.contribFreq === "annual") {
-          if (m % 12 === 0) contribution = Math.min(currentContrib, p.monthlyCap) * 12;
-        } else {
-          contribution = Math.min(currentContrib, p.monthlyCap);
-        }
-        balance += contribution;
-      } else if (inRetirement) {
-        let target;
-        if (household) {
-          // Whatever the earlier accounts in the order could not cover. Already net
-          // of the household's pooled outside income.
-          target = household.needFor(m);
-        } else if (p.withdrawMode === "percent") {
-          // Take a share of what is actually there. Self-correcting: it falls in a
-          // bad market and can never exhaust the pot, at the cost of a variable income.
-          target = balance * (p.withdrawPercent / 12);
-        } else {
-          const inflFactor = (p.withdrawMode === "indexed" && p.inflationPct > 0)
-            ? Math.pow(1 + p.inflationPct, yearIndex + p.timelineOffset)
-            : 1;
-          target = p.withdrawMonthly * inflFactor;
-        }
-        /* Pensions and the like are spent before the portfolio is touched, so they
-           reduce the draw rather than adding to it. Floored at zero: a surplus is
-           assumed spent or held elsewhere, never reinvested, which keeps this from
-           flattering the outcome.
-           Skipped in household mode, where income is pooled and netted off once at
-           the household level -- applying it per account would spend the same
-           pension two or three times over. */
-        if (hasIncome && !household) {
-          const income = incomeForYear(yearIndex);
-          totalIncome += income;
-          target = Math.max(0, target - income);
-        }
-        /* A pre-tax account holds dollars you do not fully own yet. To put a given
-           amount in your pocket you have to take more out and hand the rest over,
-           so the pot drains faster than the headline figure suggests.
-           Percent mode is exempt: "take 4% a year" is a withdrawal rule, not a
-           spending target, so the stated share comes out and the tax is paid from
-           it -- grossing that up would quietly break the rule being tested. */
-        let draw = target;
-        // A household need is always a spending target, so it always grosses up;
-        // percent mode is a withdrawal rule and only exists outside household mode.
-        if (p.deferredTaxPct > 0 && (household || p.withdrawMode !== "percent")) {
-          draw = target * p.withdrawGrossUp;
-        }
-        // Spending ceiling: hold the annual draw under a share of the balance.
-        // Applied after the gross-up, since what depletes the pot is the gross draw.
-        if (p.withdrawCapPct > 0) {
-          draw = Math.min(draw, balance * (p.withdrawCapPct / 12));
-        }
-        const pre = balance;
-        balance = Math.max(0, balance - draw);
-        withdrawal = pre - balance;
-        if (p.deferredTaxPct > 0) totalWithdrawalTax += withdrawal * p.deferredTaxPct;
-        // Report back in spendable dollars, which for a pre-tax pot is less than
-        // what left the account. A pot that runs dry simply covers less.
-        if (household) household.covered(m, withdrawal * (1 - p.deferredTaxPct));
-        if (depletionMonth === null && balance <= 0) depletionMonth = m;
-      }
-
-      const event = applyEvents(m);
-
-      let interest = balance * rateForMonth(m, yearIndex);
-      // Tax applies to gains only. Applying it to a negative month as well handed
-      // back a loss rebate, which flattered every downside path. Sheltered accounts
-      // pay nothing here -- that is what gainsTaxPct being zero for them means.
-      if (p.gainsTaxPct > 0 && interest > 0) interest = interest * (1 - p.gainsTaxPct);
-      balance = Math.max(0, balance + interest);
-
-      // Fees come off the balance after growth, the way an expense ratio accrues.
-      let fee = 0;
-      if (feeMonthly > 0 && balance > 0) {
-        fee = balance * feeMonthly;
-        balance = Math.max(0, balance - fee);
-        totalFees += fee;
-      }
-
-      if (observer && observer.onMonth) {
-        observer.onMonth({ month: m, yearIndex, contribution, withdrawal, interest, fee, event, balance });
-      }
+      const demand = household ? household.needFor(m) : null;
+      const step = walkOneMonth(st, p, msByMonth, rateForMonth, m, household, demand);
+      if (household) household.covered(m, step.delivered);
+      if (observer && observer.onMonth) observer.onMonth(step);
     }
+
+    const balance = st.balance;
+    const depletionMonth = st.depletionMonth;
+    const totalFees = st.totalFees;
+    const totalIncome = st.totalIncome;
+    const totalWithdrawalTax = st.totalWithdrawalTax;
 
     /* What is left in a pre-tax account is not yet spendable. Everything else in
        the tool reports the raw balance, so this is carried alongside rather than
@@ -7143,18 +7200,6 @@
     };
   }
 
-  /* ---- Coordinated household drawdown ------------------------------------
-     Left to themselves the accounts each fund their own retirement, so a household
-     with three pots draws from all three at once. Nobody does that, and it is the
-     expensive way round: it spends the tax-free money at the same rate as
-     everything else.
-
-     The order below is the conventional one, and the reasoning is the whole point.
-     Already-taxed money goes first, because nothing further is owed on it and
-     spending it leaves the sheltered pots compounding untouched. Pre-tax money
-     next. The Roth goes last: it is the only pot that both grows and is spent
-     entirely tax free, so every extra month it survives is worth more than the
-     same month anywhere else. */
   const DRAW_ORDER = { taxable: 0, traditional: 1, roth: 2 };
 
   function accountsInDrawOrder() {
@@ -7169,15 +7214,33 @@
       .map(e => e.acct);
   }
 
-  /* Tracks one household spending need across a run. Built once per projection and
-     reset before each Monte Carlo trial, since the accounts are walked repeatedly
-     against the same schedule of needs. */
+  /* Tracks one household spending need across a run.
+
+     It offers the same three strategies a single account has, because a household
+     spending from several pots faces exactly the same choice as one spending from
+     a single pot:
+       fixed    -- the same cash every month, whatever inflation does to it
+       indexed  -- that amount raised with inflation, so spending power holds
+       percent  -- a share of what the household actually has, which falls in a bad
+                   market and so can never run the money out
+
+     Percent is the reason the accounts are stepped through each month together
+     rather than run one after another: the ask depends on the combined balance at
+     that moment, which is not known until every pot has been carried that far. */
   function makeHouseholdDrawdown(monthsTotal) {
     const hh = appState.household || {};
+    if (!hh.enabled || !appState.accounts.length) return null;
+
+    const mode = (hh.withdrawMode === "percent" || hh.withdrawMode === "fixed")
+      ? hh.withdrawMode
+      : "indexed";
     const monthly = Math.max(0, num(hh.monthly, 0));
-    if (!hh.enabled || !(monthly > 0) || !appState.accounts.length) return null;
+    const pct = clamp(num(hh.percent, 4), 0, 100) / 100;
+    // Nothing to coordinate if the chosen strategy asks for nothing.
+    if (mode === "percent" ? !(pct > 0) : !(monthly > 0)) return null;
 
     const retireAtYear = Math.max(0, Math.round(num(hh.retireAtYear, 0)));
+    const capPct = clamp(num(hh.capPct, 0), 0, 100) / 100;
     // One household, one inflation rate: the first account's. Stated in the UI.
     const inflationPct = Math.max(0, num(appState.accounts[0]?.state?.ui?.inflationRate, 0)) / 100;
 
@@ -7188,8 +7251,10 @@
       appState.accounts.flatMap(a => Array.isArray(a.state?.incomes) ? a.state.incomes : [])
     );
 
-    const base = new Float64Array(monthsTotal + 1);
-    let totalNeeded = 0;
+    // Income and, for the cash strategies, the gross ask are the same every trial,
+    // so they are worked out once here rather than per run.
+    const incomeByMonth = new Float64Array(monthsTotal + 1);
+    const cashAsk = new Float64Array(monthsTotal + 1);
     let totalIncome = 0;
     for (let m = 1; m <= monthsTotal; m++) {
       const yearIndex = Math.floor((m - 1) / 12);
@@ -7201,42 +7266,171 @@
         if (inc.endYear > 0 && yearIndex >= inc.endYear) return;
         income += inc.amount * ((inc.indexed && inflationPct > 0) ? factor : 1);
       });
+      incomeByMonth[m] = income;
       totalIncome += income;
-      base[m] = Math.max(0, monthly * factor - income);
-      totalNeeded += base[m];
+      cashAsk[m] = monthly * ((mode === "indexed") ? factor : 1);
     }
 
-    const need = new Float64Array(monthsTotal + 1);
-    let covered = 0;
+    let asked = 0, covered = 0, shortfall = 0, shortMonths = 0, firstShortMonth = null;
 
     return {
-      retireAtYear,
-      monthly,
-      pooledIncome: pooled,
-      totalNeeded,
-      totalIncome,
-      reset() { need.set(base); covered = 0; },
-      needFor(m) { return need[m] || 0; },
-      covered(m, amount) {
-        const take = Math.min(need[m] || 0, Math.max(0, num(amount, 0)));
-        need[m] -= take;
-        covered += take;
+      retireAtYear, mode, monthly, pct, capPct, totalIncome,
+      reset() { asked = 0; covered = 0; shortfall = 0; shortMonths = 0; firstShortMonth = null; },
+
+      // What the household wants this month, net of pooled income, given what the
+      // accounts are holding right now.
+      needAt(m, totalBalance) {
+        const yearIndex = Math.floor((m - 1) / 12);
+        if (yearIndex < retireAtYear) return 0;
+        let want = (mode === "percent") ? totalBalance * (pct / 12) : cashAsk[m];
+        /* Spending ceiling, applied to the household pot rather than to any one
+           account: a retiree who cuts back in a bad decade cuts back overall. */
+        if (capPct > 0) want = Math.min(want, totalBalance * (capPct / 12));
+        want = Math.max(0, want - incomeByMonth[m]);
+        asked += want;
+        return want;
       },
-      // Whatever is still outstanding once every account has run was unaffordable.
-      result() {
-        let shortMonths = 0;
-        let firstShortMonth = null;
-        let shortfall = 0;
-        for (let m = 1; m <= monthsTotal; m++) {
-          if (need[m] > 0.005) {
-            shortMonths++;
-            shortfall += need[m];
-            if (firstShortMonth === null) firstShortMonth = m;
-          }
+
+      record(delivered) { covered += delivered; },
+
+      // Called once per month after every account has been asked. Whatever is still
+      // outstanding could not be afforded.
+      settleMonth(m, remaining) {
+        if (remaining > 0.005) {
+          shortMonths++;
+          shortfall += remaining;
+          if (firstShortMonth === null) firstShortMonth = m;
         }
-        return { covered, shortfall, shortMonths, firstShortMonth };
-      }
+      },
+
+      result() { return { asked, covered, shortfall, shortMonths, firstShortMonth }; },
+
+      /* walkMonths drives a single account and knows nothing about the others, so
+         these keep it working when only one account is in play -- the interleaved
+         walker below is used whenever there is a household to coordinate. */
+      needFor() { return 0; },
+      covered() {}
     };
+  }
+
+  /* Steps every account through the same month before any of them moves on.
+
+     Within a month the accounts are visited in draw order, each handing over what
+     it can until the household's ask is met: already-taxed money first, so the
+     sheltered pots keep compounding, then pre-tax, and the Roth last because it is
+     the only pot that both grows and is spent entirely tax free.
+
+     `specs` must already be in that order. Returns each account's finished state,
+     in the same order. */
+  function walkHousehold(specs, monthsTotal, household, observers) {
+    const states = specs.map(s => beginWalk(s.norm, s.ms));
+    states.forEach((st, i) => {
+      const ob = observers && observers[i];
+      if (ob && ob.onStart) ob.onStart(st.balance, st.opening);
+    });
+
+    for (let m = 1; m <= monthsTotal; m++) {
+      let total = 0;
+      for (let i = 0; i < states.length; i++) total += states[i].balance;
+
+      let remaining = household.needAt(m, total);
+      for (let i = 0; i < specs.length; i++) {
+        const step = walkOneMonth(states[i], specs[i].norm, specs[i].ms, specs[i].rateForMonth, m, household, remaining);
+        remaining = Math.max(0, remaining - step.delivered);
+        household.record(step.delivered);
+        const ob = observers && observers[i];
+        if (ob && ob.onMonth) ob.onMonth(step);
+      }
+      household.settleMonth(m, remaining);
+    }
+    return states;
+  }
+
+  /* Runs every account through the interleaved household walker and reshapes the
+     result into the same per-account records computeDeterministic returns, so the
+     combined view downstream cannot tell which path produced them.
+
+     Only the fields that view actually reads are rebuilt here. The month itself is
+     not reimplemented -- walkOneMonth does that for both paths -- so the two can
+     disagree about bookkeeping but never about the money. A model check runs a
+     single account down both paths and requires the same answer. */
+  function runHouseholdAccounts(household, years, monthsTotal, maxYear) {
+    const specs = accountsInDrawOrder().map(acct => {
+      const params = accountRunParams(acct, years);
+      const norm = normalizeRunParams(params);
+      const schedule = buildReturnSchedule(norm, params);
+      return {
+        acct, params, norm,
+        ms: bucketMilestonesByMonth(params.milestones, norm.monthsTotal),
+        rateForMonth: (m) => schedule.at(m).monthlyRate
+      };
+    });
+
+    const tally = specs.map(() => ({
+      seriesYearly: [], netContrib: [], schedule: [], contrib: 0, withdrawn: 0
+    }));
+
+    const observers = specs.map((spec, i) => ({
+      onStart(balance) {
+        tally[i].seriesYearly[0] = balance;
+        tally[i].netContrib[0] = balance;
+      },
+      onMonth(step) {
+        const t = tally[i];
+        t.contrib += step.contribution;
+        t.withdrawn += step.withdrawal;
+        t.schedule.push({
+          month: step.month,
+          contribution: step.contribution,
+          retirementWithdrawal: step.withdrawal,
+          interest: step.interest,
+          ending: step.balance,
+          eventDelta: 0
+        });
+        if (step.month % 12 === 0) {
+          const y = Math.round(step.month / 12);
+          t.seriesYearly[y] = step.balance;
+          t.netContrib[y] = spec.norm.principal + t.contrib - t.withdrawn;
+        }
+      }
+    }));
+
+    const states = walkHousehold(specs, monthsTotal, household, observers);
+
+    return specs.map((spec, i) => {
+      const st = states[i];
+      const t = tally[i];
+      // Carry the last known value into any year the loop did not land on.
+      for (let y = 0; y <= maxYear; y++) {
+        if (typeof t.seriesYearly[y] !== "number") {
+          t.seriesYearly[y] = (y === 0) ? st.balance : t.seriesYearly[y - 1];
+        }
+        if (typeof t.netContrib[y] !== "number") {
+          t.netContrib[y] = (y === 0) ? spec.norm.principal : t.netContrib[y - 1];
+        }
+      }
+      const deferred = spec.norm.deferredTaxPct;
+      return {
+        id: spec.acct.id,
+        name: spec.acct.name,
+        params: spec.params,
+        out: {
+          ending: st.balance,
+          seriesYearly: t.seriesYearly,
+          netContribSeriesYearly: t.netContrib,
+          growthSeriesYearly: t.seriesYearly.map((v, y) => v - t.netContrib[y]),
+          scheduleMonthly: t.schedule,
+          totalFees: st.totalFees,
+          totalIncome: st.totalIncome,
+          totalWithdrawalTax: st.totalWithdrawalTax,
+          taxType: spec.norm.taxType,
+          deferredTaxPct: deferred,
+          afterTaxEnding: st.balance * (1 - deferred),
+          deferredTaxOwed: st.balance * deferred,
+          depletionYear: st.depletionMonth !== null ? Math.ceil(st.depletionMonth / 12) : null
+        }
+      };
+    });
   }
 
   function computeCombinedDeterministic() {
@@ -7260,17 +7454,21 @@
     let combinedTaxOwed = 0;
     let depletionYear = null;
 
-    /* With a household drawdown the accounts have to be walked in draw order, each
-       one seeing only what the earlier ones could not cover. Without it they are
-       independent and the order is irrelevant. */
+    /* Without a household the accounts are independent and each is simply run.
+       With one they are stepped through every month together, in draw order, so
+       that a percent-of-total rule can see the combined balance as it goes. */
     const household = makeHouseholdDrawdown(monthsTotal);
     if (household) household.reset();
-    const runOrder = household ? accountsInDrawOrder() : appState.accounts;
 
-    runOrder.forEach(acct => {
-      const params = accountRunParams(acct, years);
-      const out = computeDeterministic(params, household);
-      perAccount.push({ id: acct.id, name: acct.name, out });
+    const accountOutputs = household
+      ? runHouseholdAccounts(household, years, monthsTotal, maxYear)
+      : appState.accounts.map(acct => {
+          const params = accountRunParams(acct, years);
+          return { id: acct.id, name: acct.name, params, out: computeDeterministic(params) };
+        });
+
+    accountOutputs.forEach(({ id, name, params, out }) => {
+      perAccount.push({ id, name, out });
       ending += out.ending;
       combinedPrincipal += clamp(params.principal, 0);
       combinedFees += num(out.totalFees, 0);
@@ -7419,27 +7617,37 @@
       // it the markets let the accounts cover, so it is rewound rather than rebuilt.
       if (household) household.reset();
 
-      specs.forEach(spec => {
-        const yearly = [];
-        const rateForMonth = (m) => {
-          const e = spec.schedule.at(m);
-          return monthlyGrowth(
-            e.muLogM,
-            e.sigmaLogM,
-            spec.fatTails ? VOL_REGIME_STATE.mult[regimes[m]] : 1,
-            spec.fatTails ? e.shifts[regimes[m]] : 0,
-            shocks[m]
-          );
-        };
-        const run = walkMonths(spec.norm, spec.ms, rateForMonth, {
-          onStart(balance) { yearly[0] = balance; },
-          onMonth(step) {
-            if (step.month % 12 === 0) yearly[Math.round(step.month / 12)] = step.balance;
-          }
-        }, household);
-        if (run.depletionMonth !== null) anyDepleted = true;
+      const rateFor = (spec) => (m) => {
+        const e = spec.schedule.at(m);
+        return monthlyGrowth(
+          e.muLogM,
+          e.sigmaLogM,
+          spec.fatTails ? VOL_REGIME_STATE.mult[regimes[m]] : 1,
+          spec.fatTails ? e.shifts[regimes[m]] : 0,
+          shocks[m]
+        );
+      };
+      const yearlyPer = specs.map(() => []);
+      const observers = specs.map((spec, i) => ({
+        onStart(balance) { yearlyPer[i][0] = balance; },
+        onMonth(step) {
+          if (step.month % 12 === 0) yearlyPer[i][Math.round(step.month / 12)] = step.balance;
+        }
+      }));
+
+      /* Coordinated accounts are stepped through each month together so a
+         percent-of-total draw can see the combined balance; independent ones are
+         simply run one at a time. Both go through the same month. */
+      const endStates = household
+        ? walkHousehold(specs.map(s => ({ ...s, rateForMonth: rateFor(s) })), monthsTotal, household, observers)
+        : specs.map((spec, i) => walkMonths(spec.norm, spec.ms, rateFor(spec), observers[i]));
+
+      specs.forEach((spec, i) => {
+        const st = endStates[i];
+        if (st.depletionMonth !== null) anyDepleted = true;
+        const yearly = yearlyPer[i];
         for (let y = 0; y <= yearsInt; y++) {
-          const v = (typeof yearly[y] === "number") ? yearly[y] : (yearly[y - 1] ?? run.balance);
+          const v = (typeof yearly[y] === "number") ? yearly[y] : (yearly[y - 1] ?? st.balance);
           yearly[y] = v;
           totals[y] += v;
         }
@@ -7484,10 +7692,20 @@
 
     // Mirror the household controls back out, and say what the order is doing.
     const hh = appState.household || {};
+    const hhMode = hh.withdrawMode || "indexed";
     if ($("householdToggle")) $("householdToggle").checked = !!hh.enabled;
+    if ($("householdWithdrawMode")) $("householdWithdrawMode").value = hhMode;
     if ($("householdMonthly")) $("householdMonthly").value = num(hh.monthly, 4000);
     if ($("householdRetireYear")) $("householdRetireYear").value = num(hh.retireAtYear, 20);
+    if ($("householdPercent")) $("householdPercent").value = num(hh.percent, 4);
+    if ($("householdCapPct")) $("householdCapPct").value = num(hh.capPct, 0);
     if ($("householdFields")) $("householdFields").hidden = !hh.enabled;
+    // A cash amount and a share of the pot are alternatives, so only one shows.
+    if ($("householdMonthlyRow")) $("householdMonthlyRow").hidden = (hhMode === "percent");
+    if ($("householdPercentRow")) $("householdPercentRow").hidden = (hhMode !== "percent");
+    /* The ceiling is a brake on a fixed cash draw. A share of the pot is already
+       self-limiting, so there is nothing for it to do there. */
+    if ($("householdCapRow")) $("householdCapRow").hidden = (hhMode === "percent");
     if ($("householdExtraYears")) $("householdExtraYears").value = num(hh.extraYears, 0);
     const horizonHint = $("horizonHint");
     if (horizonHint) {
@@ -7513,9 +7731,13 @@
         hhHint.textContent = "Off, so each account funds its own retirement separately and they all draw at once.";
       } else if (info) {
         const order = info.order.join(" → ");
-        const shortfall = info.shortMonths > 0
-          ? ` Runs short from Year ${info.shortfallYear}.`
-          : " Covered in full for the whole horizon.";
+        const shortfall = (hhMode === "percent")
+          // A share of the pot bends to whatever is there, so it cannot fall short;
+          // saying "covered in full" would be flattery rather than information.
+          ? " A share of the pot bends with the market, so it always pays something."
+          : (info.shortMonths > 0
+              ? ` Runs short from Year ${info.shortfallYear}.`
+              : " Covered in full for the whole horizon.");
         hhHint.textContent = `Taxable first, then pre-tax, and the Roth last: ${order}.${shortfall}`;
       } else {
         hhHint.textContent = "Set a monthly amount above zero to coordinate the accounts.";
@@ -7832,6 +8054,53 @@
       add("Draw order is taxable, then pre-tax, then Roth",
         orderOf(["roth", "traditional", "taxable"]) === "taxable,traditional,roth",
         orderOf(["roth", "traditional", "taxable"]));
+
+      /* The two loops must agree. A lone account taking a fixed sum through the
+         interleaved household walker has to land on exactly what the same account
+         reaches through the plain one -- if the bookkeeping in either ever drifts,
+         this is what catches it. */
+      const soloParams = { ...CHECK_BASE, principal: 500000, contribAmt: 0, years: 20, aprPercent: 5,
+        retireEnabled: true, retireAtYear: 0, withdrawMonthly: 2500, withdrawMode: "fixed" };
+      const soloNorm = normalizeRunParams(soloParams);
+      const plainRun = walkMonths(soloNorm, {}, () => 5 / 100 / 12, null);
+      const hhSolo = {
+        retireAtYear: 0, _rem: 0,
+        reset() {}, needAt() { return 2500; }, record() {},
+        settleMonth() {}, needFor() { return 0; }, covered() {}
+      };
+      const walkerStates = walkHousehold(
+        [{ norm: soloNorm, ms: {}, rateForMonth: () => 5 / 100 / 12 }],
+        soloNorm.monthsTotal, hhSolo, null
+      );
+      add("Both walkers agree on the same account",
+        Math.abs(walkerStates[0].balance - plainRun.balance) < 1e-6,
+        `${money(walkerStates[0].balance)} vs ${money(plainRun.balance)}`);
+
+      /* A share of the pot is self-limiting: it falls as the pot falls, so it can
+         never empty it. That is the property the strategy exists for, and it has to
+         survive being applied across several accounts rather than one. */
+      const pctHH = (() => {
+        let asked = 0;
+        return { retireAtYear: 0, reset() { asked = 0; },
+          needAt(m, total) { const w = total * (0.05 / 12); asked += w; return w; },
+          record() {}, settleMonth() {}, totalAsked() { return asked; },
+          needFor() { return 0; }, covered() {} };
+      })();
+      const pctSpecs = [1, 2].map(() => {
+        const n = normalizeRunParams({ ...CHECK_BASE, principal: 200000, contribAmt: 0, years: 40, aprPercent: 0 });
+        return { norm: n, ms: {}, rateForMonth: () => 0 };
+      });
+      pctHH.reset();
+      const pctStates = walkHousehold(pctSpecs, pctSpecs[0].norm.monthsTotal, pctHH, null);
+      const pctLeft = pctStates.reduce((a, s) => a + s.balance, 0);
+      add("A share-of-the-pot household draw never empties it",
+        pctLeft > 0 && pctHH.totalAsked() > 0,
+        `${money(pctLeft)} still there after 40 years`);
+      // It is a share of the COMBINED pot, so the first account in the order carries
+      // the draw until it runs dry -- that is the ordering doing its job.
+      add("The share is taken from the combined pot, in order",
+        pctStates[0].balance < pctStates[1].balance,
+        `${money(pctStates[0].balance)} then ${money(pctStates[1].balance)}`);
 
       /* The combined view can run past the accounts' own horizons, and the extension
          is clamped so a silly number cannot turn one keystroke into a million-month
@@ -8365,7 +8634,13 @@
       appState.household.enabled = !!hhToggle.checked;
       calculate();
     });
-    [["householdMonthly", "monthly"], ["householdRetireYear", "retireAtYear"]].forEach(([id, key]) => {
+    const hhMode = $("householdWithdrawMode");
+    if (hhMode) hhMode.addEventListener("change", () => {
+      appState.household.withdrawMode = hhMode.value || "indexed";
+      calculate();
+    });
+    [["householdMonthly", "monthly"], ["householdRetireYear", "retireAtYear"],
+     ["householdPercent", "percent"], ["householdCapPct", "capPct"]].forEach(([id, key]) => {
       const el = $(id);
       if (!el) return;
       el.addEventListener("input", () => {
