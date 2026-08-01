@@ -1640,7 +1640,7 @@
         <div class="cardTitle">Your plan</div>
         <div class="headerTools">
           <label class="toggle"><input id="simpleToggle" type="checkbox"> Simple mode</label>
-          <button id="resetAll" type="button" class="secondary" title="Clear saved work and restore defaults">Reset</button>
+          <button id="resetAll" type="button" class="secondary" title="Erase every account, scenario and setting and start from an empty plan">Reset</button>
         </div>
       </div>
 
@@ -2205,6 +2205,23 @@
     return ui;
   }
 
+  /* An empty plan: every amount and rate at zero, every option off. This is what
+     Reset produces, on the view that a blank form you fill in beats a worked
+     example you have to clear out first.
+
+     Fields declaring a minimum above zero sit at that minimum instead -- a "1" in a
+     box that cannot legally hold 0 is less confusing than a 0 the next keystroke
+     would silently correct. They belong to features that are switched off anyway. */
+  function blankUI() {
+    const ui = {};
+    UI_FIELDS.forEach(f => {
+      if (f.kind === "bool") ui[f.key] = false;
+      else if (f.kind === "num") ui[f.key] = (Number.isFinite(f.min) && f.min > 0) ? f.min : 0;
+      else ui[f.key] = f.def;
+    });
+    return ui;
+  }
+
   const appState = {
     ui: defaultUI(),
     milestonesEnabled: false,
@@ -2679,19 +2696,28 @@
     syncNoticeTimer = setTimeout(() => { el.hidden = true; syncNoticeTimer = null; }, 4000);
   }
 
+  /* Reset clears the lot and leaves an empty plan behind.
+
+     Everything the profile owns has to be named here, not just the account mirror:
+     household spending and the extended horizon live beside `accounts`, and were
+     surviving a reset because this only ever reached into `ui`. */
   function resetToDefaults() {
     clearStoredState();
-    if (shippedDefaults) {
-      const d = deepCopy(shippedDefaults);
-      appState.ui = d.ui;
-      appState._simpleSnapshot = null;
-    }
+    appState.ui = blankUI();
+    appState._simpleSnapshot = null;
     appState.milestones = [];
     appState.incomes = [];
     appState.milestonesEnabled = false;
     appState.scenarios = [];
     appState.activeScenarioId = null;
     appState.chainMode = false;
+    appState.household = {
+      enabled: false, monthly: 0, retireAtYear: 0, extraYears: 0,
+      withdrawMode: "indexed", percent: 0, capPct: 0
+    };
+    // Series hidden through the legend are a view setting, but "erase everything"
+    // reasonably means the chart comes back the way it shipped too.
+    if (appState.chart) appState.chart.dimmedSeries = {};
     appState.accounts = [makeAccount("Account 1", captureAccountState())];
     appState.activeAccountId = appState.accounts[0].id;
 
@@ -2734,12 +2760,16 @@
   function addAccount() {
     if (appState.accounts.length >= MAX_ACCOUNTS) return;
     syncActiveAccount();
-    // A new account starts from the shipped defaults, not a copy of the current
-    // one, so adding "Brokerage" next to "401k" does not silently inherit its rate.
-    const fresh = shippedDefaults ? deepCopy(shippedDefaults) : null;
-    const state = fresh
-      ? { ui: fresh.ui, milestonesEnabled: false, milestones: [], incomes: [], scenarios: [], activeScenarioId: null, chainMode: false, simpleSnapshot: null }
-      : captureAccountState();
+    /* A new account starts empty rather than as a copy of the current one, so
+       adding "Brokerage" next to "403b" cannot silently inherit its balance or
+       rate. Empty rather than the shipped example for the same reason Reset is:
+       a blank field you fill in beats a plausible number you have to notice and
+       clear. Its horizon starts at zero too, which leaves the combined view's
+       span decided by the accounts that actually have one. */
+    const state = {
+      ui: blankUI(), milestonesEnabled: false, milestones: [], incomes: [],
+      scenarios: [], activeScenarioId: null, chainMode: false, simpleSnapshot: null
+    };
     const acct = makeAccount(`Account ${appState.accounts.length + 1}`, state);
     appState.accounts.push(acct);
     appState.activeAccountId = acct.id;
@@ -5100,9 +5130,22 @@
     if (summary) summary.textContent = "Enter values to begin.";
     const cross = $("crossoverPill");
     if (cross) { cross.style.display = "none"; cross.textContent = ""; }
+    /* Everything describing the last projection has to go too. The canvas was
+       being cleared while the header pill, the chart subtitle and the canvas's
+       own accessibility label kept advertising the plan that had just been
+       erased -- so a reset still read "30 Year Projection @ 7%" at the top of
+       an empty form. */
+    const pill = $("pill");
+    if (pill) pill.textContent = "No plan yet";
+    const chartSubtitle = $("chartSubtitle");
+    if (chartSubtitle) chartSubtitle.textContent = "Nothing to plot yet";
+    appState.chart.lastData = null;
     appState.chart.hoverSeries = null;
     appState.chart.activeYear = null;
+    appState.chart.activeT = null;
+    appState.chart.activeX = null;
     appState.chart.activeMilestoneYear = null;
+    updateChartLabel(null);
     hideTooltip();
     renderChartLegend([]);
     drawEmptyChart("Enter values to begin");
